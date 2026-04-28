@@ -1,0 +1,11 @@
+# configs/paths.yaml
+data:
+  raw: "data/raw"              # Place the downloaded Dataset here.
+  processed: "data/processed"  # Save splited sets (train/val/test)
+  
+splits:
+  json_path: "splits/split_seed42.json" # Path to the partition file
+
+artifacts:
+  checkpoints: "artifacts/checkpoints"
+  logs: "logs/"
