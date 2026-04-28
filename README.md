@@ -2,8 +2,8 @@
 
 ## Contributors (Group 15)
 - **Almira Dyussenova** 
+- **Kanhaiya Kanhaiya**
 - **Livia Zoebeli**
-- **Kanhaiya Kanhaiya** 
 
 
 This repository contains an end-to-end MLOps pipeline designed for a reproducible machine learning workflow. The project focuses on **Monocular 3D Reconstruction**, converting single 2D images into interactive 3D environments using deep learning.
