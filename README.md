@@ -40,5 +40,6 @@ Clone the repository and activate the environment:
 ```bash
 conda activate machle
 pip install -r requirements.txt
+run notebooks/DaV2_PtCloud.ipynb file 
 
 
