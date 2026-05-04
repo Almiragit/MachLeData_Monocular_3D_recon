@@ -6,3 +6,5 @@ torch
 torchvision
 open3d
 jupyter 
+dvc 
+dvc-s3

@@ -1,20 +1,2 @@
-# Ignore data folder (will be tracked by DVC instead)
-data/
-!data/sample/
-
-# Python environment and cache
-__pycache__/
-*.py[cod]
-.venv/
-env/
-venv/
-.env
-
-# IDE settings
-.vscode/
-.DS_Store
-
-# Training artifacts
-artifacts/checkpoints/
-artifacts/outputs/
-*.log
+/dvcTest.txt
+/dvcf

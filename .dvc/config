@@ -1,0 +1,4 @@
+[core]
+    remote = machle3d
+['remote "machle3d"']
+    url = s3://machle3d
