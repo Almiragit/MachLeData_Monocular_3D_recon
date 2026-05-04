@@ -40,6 +40,8 @@ Clone the repository and activate the environment:
 ```bash
 conda activate machle
 pip install -r requirements.txt
-run notebooks/DaV2_PtCloud.ipynb file 
+dvc pull
+run notebooks/DaV2_PtCloud.ipynb using jupyter-notebook 
+or src/models/Depth-Anything-V2/test.py using python test.py 
 
 
