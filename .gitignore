@@ -46,3 +46,7 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
+
+# Large point cloud files
+*.ply
+outputs/
