@@ -1,0 +1,87 @@
+# DVC Pipeline — Monocular 3D Reconstruction (Depth-Anything-V2)
+# Dataset lives on AWS S3. DaV2 is inference-only (no training stage).
+#
+# Run full pipeline:   dvc repro
+# Run one stage:       dvc repro <stage>
+# Show DAG:            dvc dag
+
+stages:
+
+  # ── 1. Sync raw images from AWS S3 ────────────────────────────────────────
+  download:
+    cmd: python src/data/download.py --bucket s3://machle3d --output data/raw
+    desc: "Pull raw images from AWS S3 into data/raw"
+    deps:
+      - src/data/download.py
+      - configs/paths.yaml
+    outs:
+      - data/raw:
+          cache: true
+          persist: true    # never re-download if already present
+
+  # ── 2. Preprocess & split ──────────────────────────────────────────────────
+  preprocess:
+    cmd: python src/data/preprocess.py --config configs/paths.yaml
+    desc: "Resize images and create train/val/test split JSON"
+    deps:
+      - src/data/preprocess.py
+      - configs/paths.yaml
+      - data/raw
+    outs:
+      - data/processed:
+          cache: true
+      - splits/split_seed42.json:
+          cache: true
+          persist: true    # fixed split — never regenerate
+
+  # ── 3. Run DaV2 inference on validation split ──────────────────────────────
+  inference_val:
+    cmd: python src/training/train.py --split val
+    desc: "Run DaV2 depth inference on val split, log to W&B"
+    deps:
+      - src/training/train.py
+      - src/models/model.py
+      - src/utils.py
+      - configs/train.yaml
+      - configs/paths.yaml
+      - data/processed
+      - splits/split_seed42.json
+      - src/models/Depth-Anything-V2/checkpoints/depth_anything_v2_vitb.pth
+    outs:
+      - outputs/val:
+          cache: true
+    metrics:
+      - artifacts/logs/inference_val.csv:
+          cache: false
+
+  # ── 4. Run DaV2 inference on test split ───────────────────────────────────
+  inference_test:
+    cmd: python src/training/train.py --split test
+    desc: "Run DaV2 depth inference on test split"
+    deps:
+      - src/training/train.py
+      - src/models/model.py
+      - src/utils.py
+      - configs/train.yaml
+      - configs/paths.yaml
+      - data/processed
+      - splits/split_seed42.json
+      - src/models/Depth-Anything-V2/checkpoints/depth_anything_v2_vitb.pth
+    outs:
+      - outputs/test:
+          cache: true
+    metrics:
+      - artifacts/logs/inference_test.csv:
+          cache: false
+
+  # ── 5. Drift check trigger (Stage 5) ─────────────────────────────────
+  drift_check:
+    cmd: python src/training/retrain_trigger.py --once
+    desc: "Check Prometheus drift metrics and trigger pipeline re-run if sustained drift"
+    deps:
+      - src/training/retrain_trigger.py
+      - artifacts/logs/inference_val.csv
+      - artifacts/logs/inference_test.csv
+    metrics:
+      - artifacts/logs/retrain_log.csv:
+          cache: false

@@ -1,0 +1,34 @@
+# configs/train.yaml
+# ------------------
+# Experiment configuration for the DaV2 inference pipeline.
+# "Training" here means: run inference on dataset, track results in W&B.
+
+experiment:
+  name: "dav2-vitb-inference"
+  project: "monocular-3d-recon"
+  tags: ["dav2", "vitb", "inference", "point-cloud"]
+  notes: "Depth-Anything-V2 ViT-B depth estimation + 3D point cloud generation"
+
+model:
+  architecture: "dav2_vitb"      # dav2_vits | dav2_vitb | dav2_vitl
+  encoder: "vitb"                # matches architecture suffix
+  input_size: 518                # DaV2 default — don't change unless comparing
+  checkpoint_dir: "src/models/Depth-Anything-V2/checkpoints"
+
+inference:
+  batch_size: 1                  # DaV2 runs image-by-image (infer_image API)
+  num_workers: 4
+  save_depth_maps: true          # save normalised depth PNGs
+  save_coloured_depth: true      # save INFERNO colourmap PNGs
+  save_point_clouds: true        # save .ply files
+  point_cloud_subsample: 1       # 1 = full density, 4 = every 4th pixel
+
+evaluation:
+  depth_metrics: false           # requires ground-truth depth (set true if GT available)
+  log_n_sample_images: 8        # how many depth samples to upload to W&B
+
+logging:
+  log_dir: "artifacts/logs"
+  csv_log: "artifacts/logs/inference_log.csv"
+  plots_dir: "artifacts/plots"
+  log_every_n_steps: 10

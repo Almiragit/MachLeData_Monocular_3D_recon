@@ -1,2 +1,52 @@
+# DVC test files
 /dvcTest.txt
 /dvcf
+
+# Secrets — never commit
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+machle/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Data (tracked by DVC instead)
+data/raw/
+data/processed/
+
+# Model outputs (large files)
+outputs/
+artifacts/checkpoints/
+artifacts/logs/
+artifacts/plots/
+
+# DaV2 checkpoints (large — download separately)
+src/models/Depth-Anything-V2/checkpoints/*.pth
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+
+# Large point cloud files
+*.ply
+outputs/
