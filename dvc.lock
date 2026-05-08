@@ -1,0 +1,19 @@
+schema: '2.0'
+stages:
+  download:
+    cmd: python src/data/download.py --bucket s3://machle3d --output data/raw
+    deps:
+    - path: configs/paths.yaml
+      hash: md5
+      md5: 45a8a0de20ef4d28d236c3fba6d7933e
+      size: 862
+    - path: src/data/download.py
+      hash: md5
+      md5: 3aa47899c97a896592f1eb7090170640
+      size: 2690
+    outs:
+    - path: data/raw
+      hash: md5
+      md5: 56c01215362ea379c0c33a3d34adbc16.dir
+      size: 389961431
+      nfiles: 7

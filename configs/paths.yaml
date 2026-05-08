@@ -1,11 +1,26 @@
 # configs/paths.yaml
+# ------------------
+# All filesystem paths used across the pipeline.
+
 data:
-  raw: "data/raw"              # Place the downloaded Dataset here.
-  processed: "data/processed"  # Save splited sets (train/val/test)
-  
+  raw: "data/raw"              # Raw images pulled from AWS S3
+  processed: "data/processed"  # Resized / preprocessed images
+
 splits:
-  json_path: "splits/split_seed42.json" # Path to the partition file
+  json_path: "splits/split_seed42.json"   # Created once — never regenerated
+
+aws:
+  s3_bucket: "s3://your-bucket-name/dataset/"   # ← set your real bucket here
+  profile: "default"                             # AWS CLI profile (optional)
+
+model:
+  dav2_repo: "src/models/Depth-Anything-V2"
+  checkpoint_dir: "src/models/Depth-Anything-V2/checkpoints"
+  encoder: "vitb"              # vits | vitb | vitl
+  input_size: 518              # DaV2 default inference size
 
 artifacts:
   checkpoints: "artifacts/checkpoints"
-  logs: "logs/"
+  logs: "artifacts/logs"
+  plots: "artifacts/plots"
+  outputs: "outputs"           # .ply point cloud exports
