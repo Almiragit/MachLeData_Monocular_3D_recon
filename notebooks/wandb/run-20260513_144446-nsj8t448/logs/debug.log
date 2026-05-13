@@ -1,0 +1,16 @@
+2026-05-13 14:44:46,954 INFO    MainThread:29944 [wandb_setup.py:_flush():81] Current SDK version is 0.26.1
+2026-05-13 14:44:46,954 INFO    MainThread:29944 [wandb_setup.py:_flush():81] Configure stats pid to 29944
+2026-05-13 14:44:46,954 INFO    MainThread:29944 [wandb_setup.py:_flush():81] Loading settings from environment variables
+2026-05-13 14:44:46,954 INFO    MainThread:29944 [wandb_init.py:setup_run_log_directory():723] Logging user logs to C:\Users\kanha\Documents\MachLeData\notebooks\wandb\run-20260513_144446-nsj8t448\logs\debug.log
+2026-05-13 14:44:46,954 INFO    MainThread:29944 [wandb_init.py:setup_run_log_directory():724] Logging internal logs to C:\Users\kanha\Documents\MachLeData\notebooks\wandb\run-20260513_144446-nsj8t448\logs\debug-internal.log
+2026-05-13 14:44:46,954 INFO    MainThread:29944 [wandb_init.py:monkeypatch_ipython():642] configuring jupyter hooks <wandb.sdk.wandb_init._WandbInit object at 0x0000021DECE85970>
+2026-05-13 14:44:46,954 INFO    MainThread:29944 [wandb_init.py:init():850] calling init triggers
+2026-05-13 14:44:46,954 INFO    MainThread:29944 [wandb_init.py:init():855] wandb.init called with sweep_config: {}
+config: {'_wandb': {}}
+2026-05-13 14:44:46,954 INFO    MainThread:29944 [wandb_init.py:init():898] starting backend
+2026-05-13 14:44:49,479 INFO    MainThread:29944 [wandb_init.py:init():913] sending inform_init request
+2026-05-13 14:44:51,811 INFO    MainThread:29944 [wandb_init.py:init():918] backend started and connected
+2026-05-13 14:44:51,818 INFO    MainThread:29944 [wandb_run.py:_label_probe_notebook():1345] probe notebook
+2026-05-13 14:44:51,822 INFO    MainThread:29944 [wandb_run.py:_label_probe_notebook():1355] Unable to probe notebook: 'NoneType' object has no attribute 'get'
+2026-05-13 14:44:51,822 INFO    MainThread:29944 [wandb_init.py:init():988] updated telemetry
+2026-05-13 14:44:52,128 INFO    MainThread:29944 [wandb_init.py:init():1011] communicating run to backend with 90.0 second timeout
