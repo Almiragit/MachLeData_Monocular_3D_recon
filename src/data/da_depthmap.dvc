@@ -1,0 +1,6 @@
+outs:
+- md5: 6fa9a59d61243d65859a8f2339bcb4e2.dir
+  size: 59303164
+  nfiles: 101
+  hash: md5
+  path: da_depthmap

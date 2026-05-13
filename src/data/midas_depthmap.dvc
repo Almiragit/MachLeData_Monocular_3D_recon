@@ -1,0 +1,6 @@
+outs:
+- md5: 38123f9ca61dbc55b515968dd3d2939e.dir
+  size: 55006856
+  nfiles: 101
+  hash: md5
+  path: midas_depthmap

@@ -1,0 +1,6 @@
+outs:
+- md5: 2463342cd3ae032412b771ec2b22919e.dir
+  size: 59358162
+  nfiles: 101
+  hash: md5
+  path: imageData
