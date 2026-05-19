@@ -56,3 +56,5 @@ notebooks/wandb/
 src/registry/wandb/
 src/data/request_data
 src/training/wandb/
+# Added by DVC automatically:
+/checkpoints
