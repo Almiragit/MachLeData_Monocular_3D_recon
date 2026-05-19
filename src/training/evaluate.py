@@ -1,101 +1,173 @@
 """
 src/training/evaluate.py
 ------------------------
-Standalone evaluation script — run on val or test split.
+Standalone evaluation script — run on val or test split after training.
 
 Usage:
+    python src/training/evaluate.py
     python src/training/evaluate.py --checkpoint artifacts/checkpoints/best_model.pth
-    python src/training/evaluate.py --checkpoint artifacts/checkpoints/best_model.pth --split test
+    python src/training/evaluate.py --split test --log_wandb
 """
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
+import numpy as np
 import torch
+from torch.utils.data import DataLoader
+from tqdm import tqdm
 import wandb
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-from src.data.dataset import build_dataloaders
-from src.models.model import build_model
-from src.utils import (
-    compute_depth_metrics,
-    get_device,
-    load_checkpoint,
-    load_configs,
-    set_seed,
-)
+from src.models.model import build_hybrid_model
+from src.models.losses import SILogLoss
+from src.training.train import NYUDataset
+from src.utils import get_device, load_checkpoint, load_configs, set_seed
 
 
-def evaluate(model, loader, device, debug: bool = False) -> dict:
+# ─── Metrics ──────────────────────────────────────────────────────────────────
+@torch.no_grad()
+def compute_metrics(pred: torch.Tensor, target: torch.Tensor) -> dict:
+    """
+    Compute standard monocular depth evaluation metrics.
+
+    Args:
+        pred: (B, 1, H, W) predicted depth
+        target: (B, 1, H, W) ground truth depth
+
+    Returns:
+        dict with rmse, mae, abs_rel, delta1, delta2, delta3
+    """
+    mask = (target > 0) & (target <= 10.0)
+    if not mask.any():
+        return {}
+
+    p = pred[mask]
+    t = target[mask]
+
+    # Threshold accuracy
+    ratio = torch.max(p / t, t / p)
+    delta1 = (ratio < 1.25).float().mean().item()
+    delta2 = (ratio < 1.25 ** 2).float().mean().item()
+    delta3 = (ratio < 1.25 ** 3).float().mean().item()
+
+    # Error metrics
+    abs_diff = torch.abs(p - t)
+    rmse = torch.sqrt((abs_diff ** 2).mean()).item()
+    mae = abs_diff.mean().item()
+    abs_rel = (abs_diff / t).mean().item()
+
+    return {
+        "rmse": rmse,
+        "mae": mae,
+        "abs_rel": abs_rel,
+        "delta1": delta1,
+        "delta2": delta2,
+        "delta3": delta3,
+    }
+
+
+@torch.no_grad()
+def evaluate(model, loader, criterion, device, debug: bool = False) -> dict:
+    """Run evaluation on a DataLoader, return averaged metrics."""
     model.eval()
     all_metrics = []
+    total_loss = 0
+
     n_batches = 5 if debug else len(loader)
+    loader_iter = tqdm(loader, desc="Evaluating", total=n_batches)
 
-    with torch.no_grad():
-        for i, (rgb, depth) in enumerate(loader):
-            if i >= n_batches:
-                break
-            rgb = rgb.to(device, non_blocking=True)
-            depth = depth.to(device, non_blocking=True)
-            pred = model(rgb)
-            all_metrics.append(compute_depth_metrics(pred, depth))
+    for i, (images, depths) in enumerate(loader_iter):
+        if i >= n_batches:
+            break
 
-    avg = {k: sum(m[k] for m in all_metrics) / len(all_metrics) for k in all_metrics[0]}
+        images, depths = images.to(device), depths.to(device)
+        outputs = model(images)
+        outputs = torch.clamp(outputs, min=0.1, max=10.0)
+
+        loss = criterion(outputs, depths)
+        total_loss += loss.item()
+
+        metrics = compute_metrics(outputs, depths)
+        if metrics:
+            all_metrics.append(metrics)
+
+    # Average metrics
+    avg = {k: np.mean([m[k] for m in all_metrics]) for k in all_metrics[0]}
+    avg["val_loss"] = total_loss / n_batches
     return avg
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Evaluate depth model")
-    parser.add_argument("--checkpoint", type=str,
-                        default="artifacts/checkpoints/best_model.pth")
-    parser.add_argument("--split", type=str, default="val",
-                        choices=["val", "test"])
-    parser.add_argument("--paths_config", type=str, default="configs/paths.yaml")
-    parser.add_argument("--train_config", type=str, default="configs/train.yaml")
-    parser.add_argument("--debug", action="store_true")
-    parser.add_argument("--log_wandb", action="store_true",
-                        help="Log results to W&B (requires active run or will create one)")
-    args = parser.parse_args()
+# ─── Main ─────────────────────────────────────────────────────────────────────
+def parse_args():
+    p = argparse.ArgumentParser(description="Evaluate fine-tuned depth model")
+    p.add_argument("--checkpoint", type=str,
+                   default="artifacts/checkpoints/best_model.pth")
+    p.add_argument("--split", type=str, default="val", choices=["val", "test"])
+    p.add_argument("--paths_config", default="configs/paths.yaml")
+    p.add_argument("--train_config", default="configs/train.yaml")
+    p.add_argument("--debug", action="store_true")
+    p.add_argument("--log_wandb", action="store_true")
+    return p.parse_args()
 
+
+def main():
+    args = parse_args()
     cfg = load_configs(args.paths_config, args.train_config)
-    set_seed(cfg["training"]["seed"])
+
+    set_seed(42)
     device = get_device()
 
-    # Load model
-    model = build_model(cfg["model"]["architecture"]).to(device)
-    ckpt = load_checkpoint(args.checkpoint, device)
-    model.load_state_dict(ckpt["model_state"])
-    print(f"[INFO] Loaded weights from: {args.checkpoint}")
+    # ── Data ─────────────────────────────────────────────────────────────────
+    data_root = cfg["data"].get("nyu_processed", "data/nyu/processed")
+    split_dir = os.path.join(data_root, args.split)
+    print(f"[INFO] Evaluating on: {split_dir}")
 
-    # Build loader for desired split
-    loaders = build_dataloaders(
-        processed_dir=cfg["data"]["processed"],
-        batch_size=cfg["training"]["batch_size"],
-        num_workers=cfg["training"]["num_workers"],
-        img_size=(cfg["model"]["img_height"], cfg["model"]["img_width"]),
-        split_json=cfg["splits"]["json_path"],
+    ds = NYUDataset(split_dir)
+    if args.debug:
+        ds.files = ds.files[:20]
+
+    loader = DataLoader(
+        ds, batch_size=cfg["training"]["batch_size"],
+        shuffle=False, num_workers=0
     )
 
-    metrics = evaluate(model, loaders[args.split], device, debug=args.debug)
+    # ── Model ────────────────────────────────────────────────────────────────
+    model = build_hybrid_model(
+        encoder=cfg["model"]["encoder"],
+        checkpoint_dir=cfg["model"].get("checkpoint_dir"),
+        device=device,
+        freeze_encoder=False,  # load full model (encoder + decoder)
+    )
+    ckpt = load_checkpoint(args.checkpoint, device)
+    model.load_state_dict(ckpt.get("model_state", ckpt))
+    print(f"[INFO] Loaded weights from: {args.checkpoint}")
 
-    # Print results
-    print(f"\n{'='*50}")
-    print(f"  Evaluation on [{args.split}] split")
-    print(f"{'='*50}")
+    criterion = SILogLoss()
+
+    # ── Evaluate ─────────────────────────────────────────────────────────────
+    metrics = evaluate(model, loader, criterion, device, debug=args.debug)
+
+    # ── Print results ─────────────────────────────────────────────────────────
+    print(f"\n{'='*55}")
+    print(f"  Evaluation on [{args.split}] split — {len(ds)} samples")
+    print(f"{'='*55}")
     for k, v in metrics.items():
         print(f"  {k:<12} : {v:.4f}")
-    print(f"{'='*50}\n")
+    print(f"{'='*55}\n")
 
-    # Optional W&B log
+    # ── Optional W&B log ─────────────────────────────────────────────────────
     if args.log_wandb:
         run = wandb.init(
             project=cfg["experiment"]["project"],
             job_type="evaluation",
             name=f"eval_{args.split}",
         )
-        wandb.log({f"eval_{args.split}/{k}": v for k, v in metrics.items()})
+        wandb.log({f"eval/{k}": v for k, v in metrics.items()})
         wandb.finish()
+        print("[INFO] Results logged to W&B")
 
 
 if __name__ == "__main__":

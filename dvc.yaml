@@ -1,5 +1,5 @@
-# DVC Pipeline — Monocular 3D Reconstruction (Depth-Anything-V2)
-# Dataset lives on AWS S3. DaV2 is inference-only (no training stage).
+# DVC Pipeline — Monocular 3D Reconstruction (Depth-Anything-V2 Hybrid)
+# Dataset: NYU Depth V2 (public, with ground truth)
 #
 # Run full pipeline:   dvc repro
 # Run one stage:       dvc repro <stage>
@@ -7,81 +7,81 @@
 
 stages:
 
-  # ── 1. Sync raw images from AWS S3 ────────────────────────────────────────
-  download:
-    cmd: python src/data/download.py --bucket s3://machle3d --output data/raw
-    desc: "Pull raw images from AWS S3 into data/raw"
+  # ── 1. Download NYU Depth V2 dataset ─────────────────────────────────────────
+  download_nyu:
+    cmd: python src/data/downloadNYU.py
+    desc: "Download NYU Depth V2 .mat file"
     deps:
-      - src/data/download.py
+      - src/data/downloadNYU.py
       - configs/paths.yaml
     outs:
-      - data/raw:
+      - data/nyu/raw/nyu_depth_v2_labeled.mat:
           cache: true
-          persist: true    # never re-download if already present
 
-  # ── 2. Preprocess & split ──────────────────────────────────────────────────
-  preprocess:
-    cmd: python src/data/preprocess.py --config configs/paths.yaml
-    desc: "Resize images and create train/val/test split JSON"
+  # ── 2. Prepare data: .mat → .pt files, train/val/test split ──────────────────
+  prepare_data:
+    cmd: python src/data/prepare_split_data.py
+    desc: "Convert NYU .mat to .pt files and split into train/val/test"
     deps:
-      - src/data/preprocess.py
+      - src/data/prepare_split_data.py
       - configs/paths.yaml
-      - data/raw
+      - data/nyu/raw/nyu_depth_v2_labeled.mat
     outs:
-      - data/processed:
+      - data/nyu/processed/train:
           cache: true
-      - splits/split_seed42.json:
+      - data/nyu/processed/val:
           cache: true
-          persist: true    # fixed split — never regenerate
+      - data/nyu/processed/test:
+          cache: true
 
-  # ── 3. Run DaV2 inference on validation split ──────────────────────────────
-  inference_val:
-    cmd: python src/training/train.py --split val
-    desc: "Run DaV2 depth inference on val split, log to W&B"
+  # ── 3. Fine-tune DaV2 Hybrid Decoder on NYU train split ─────────────────────
+  train:
+    cmd: python src/training/train.py
+    desc: "Fine-tune DPTHead decoder (frozen DINOv2 encoder) on NYU train split"
     deps:
       - src/training/train.py
       - src/models/model.py
+      - src/models/losses.py
       - src/utils.py
       - configs/train.yaml
       - configs/paths.yaml
-      - data/processed
-      - splits/split_seed42.json
+      - data/nyu/processed/train
+      - data/nyu/processed/val
       - src/models/Depth-Anything-V2/checkpoints/depth_anything_v2_vitb.pth
     outs:
-      - outputs/val:
+      - artifacts/checkpoints/best_model.pth:
+          cache: true
+      - artifacts/checkpoints/latest_model.pth:
           cache: true
     metrics:
-      - artifacts/logs/inference_val.csv:
+      - artifacts/logs/train_metrics.csv:
           cache: false
 
-  # ── 4. Run DaV2 inference on test split ───────────────────────────────────
-  inference_test:
-    cmd: python src/training/train.py --split test
-    desc: "Run DaV2 depth inference on test split"
+  # ── 4. Evaluate best model on test split ─────────────────────────────────────
+  evaluate:
+    cmd: python src/training/evaluate.py --split test
+    desc: "Evaluate best checkpoint on NYU test split"
     deps:
-      - src/training/train.py
+      - src/training/evaluate.py
       - src/models/model.py
+      - src/models/losses.py
       - src/utils.py
       - configs/train.yaml
       - configs/paths.yaml
-      - data/processed
-      - splits/split_seed42.json
-      - src/models/Depth-Anything-V2/checkpoints/depth_anything_v2_vitb.pth
-    outs:
-      - outputs/test:
-          cache: true
+      - data/nyu/processed/test
+      - artifacts/checkpoints/best_model.pth
     metrics:
-      - artifacts/logs/inference_test.csv:
+      - artifacts/logs/eval_metrics.csv:
           cache: false
 
-  # ── 5. Drift check trigger (Stage 5) ─────────────────────────────────
-  drift_check:
-    cmd: python src/training/retrain_trigger.py --once
-    desc: "Check Prometheus drift metrics and trigger pipeline re-run if sustained drift"
+  # ── 5. Push best model to W&B Registry ──────────────────────────────────────
+  push_registry:
+    cmd: python src/registry/push_model.py
+    desc: "Push best checkpoint to W&B Model Registry"
     deps:
-      - src/training/retrain_trigger.py
-      - artifacts/logs/inference_val.csv
-      - artifacts/logs/inference_test.csv
+      - src/registry/push_model.py
+      - configs/train.yaml
+      - artifacts/checkpoints/best_model.pth
     metrics:
-      - artifacts/logs/retrain_log.csv:
+      - artifacts/logs/registry_push.log:
           cache: false

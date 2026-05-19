@@ -1,10 +1,7 @@
 """
 src/registry/push_model.py
 --------------------------
-Stage 3 – Model Registry: Push best checkpoint to W&B Model Registry.
-
-This script is called automatically by GitHub Actions after a successful
-training run, but can also be run manually.
+Push best checkpoint to W&B Model Registry.
 
 Usage:
     python src/registry/push_model.py
@@ -27,10 +24,7 @@ def push_to_registry(
     model_name: str,
     metadata: dict | None = None,
 ) -> str:
-    """
-    Upload *checkpoint_path* to W&B Model Registry as a versioned artifact.
-    Returns the artifact version string (e.g. 'v3').
-    """
+    """Upload checkpoint to W&B Model Registry. Returns version string."""
     run = wandb.init(
         project=project,
         job_type="model-registry",
@@ -40,30 +34,25 @@ def push_to_registry(
     artifact = wandb.Artifact(
         name=model_name,
         type="model",
-        description="Best depth estimation checkpoint",
+        description="Fine-tuned DaV2 Hybrid Decoder checkpoint",
         metadata=metadata or {},
     )
     artifact.add_file(checkpoint_path, name="best_model.pth")
     logged = run.log_artifact(artifact)
-    logged.wait()   # ensure upload completes before finishing run
+    logged.wait()
 
     version = logged.version
-    print(f"[Registry] ✓ Artifact logged: {model_name}:{version}")
-    print(f"[Registry] View at: https://wandb.ai/{run.entity}/{project}/artifacts/model/{model_name}/{version}")
-
+    print(f"[Registry] Artifact logged: {model_name}:{version}")
     wandb.finish()
     return version
 
 
 def main():
     parser = argparse.ArgumentParser(description="Push model to W&B Model Registry")
-    parser.add_argument(
-        "--checkpoint",
-        type=str,
-        default="artifacts/checkpoints/best_model.pth",
-    )
-    parser.add_argument("--paths_config", type=str, default="configs/paths.yaml")
-    parser.add_argument("--train_config", type=str, default="configs/train.yaml")
+    parser.add_argument("--checkpoint", type=str,
+                        default="artifacts/checkpoints/best_model.pth")
+    parser.add_argument("--paths_config", default="configs/paths.yaml")
+    parser.add_argument("--train_config", default="configs/train.yaml")
     args = parser.parse_args()
 
     cfg = load_configs(args.paths_config, args.train_config)
@@ -71,11 +60,13 @@ def main():
     push_to_registry(
         checkpoint_path=args.checkpoint,
         project=cfg["experiment"]["project"],
-        model_name=cfg["experiment"]["name"],
+        model_name=cfg["experiment"]["name"] + "-finetuned",
         metadata={
+            "encoder": cfg["model"]["encoder"],
             "architecture": cfg["model"]["architecture"],
-            "img_height": cfg["model"]["img_height"],
-            "img_width": cfg["model"]["img_width"],
+            "epochs": cfg["training"]["epochs"],
+            "learning_rate": cfg["training"]["learning_rate"],
+            "freeze_encoder": cfg["training"].get("freeze_encoder", True),
         },
     )
 

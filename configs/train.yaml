@@ -1,31 +1,37 @@
 # configs/train.yaml
 # ------------------
-# Experiment configuration for the DaV2 inference pipeline.
-# "Training" here means: run inference on dataset, track results in W&B.
+# Experiment configuration for DaV2 Hybrid fine-tuning pipeline.
 
 experiment:
   name: "dav2-vitb-inference"
   project: "monocular-3d-recon"
-  tags: ["dav2", "vitb", "inference", "point-cloud"]
-  notes: "Depth-Anything-V2 ViT-B depth estimation + 3D point cloud generation"
+  tags: ["dav2", "vitb", "hybrid", "finetune"]
+  notes: "Depth-Anything-V2 ViT-B with frozen DINOv2 + trainable DPTHead decoder"
 
 model:
   architecture: "dav2_vitb"      # dav2_vits | dav2_vitb | dav2_vitl
   encoder: "vitb"                # matches architecture suffix
-  input_size: 518                # DaV2 default — don't change unless comparing
+  input_size: 518                # DaV2 default inference size
   checkpoint_dir: "src/models/Depth-Anything-V2/checkpoints"
+
+training:
+  epochs: 10
+  batch_size: 4
+  learning_rate: 0.0001
+  freeze_encoder: true           # DINOv2 frozen, only DPTHead trains
+  num_workers: 0
 
 inference:
   batch_size: 1                  # DaV2 runs image-by-image (infer_image API)
   num_workers: 4
-  save_depth_maps: true          # save normalised depth PNGs
-  save_coloured_depth: true      # save INFERNO colourmap PNGs
-  save_point_clouds: true        # save .ply files
-  point_cloud_subsample: 1       # 1 = full density, 4 = every 4th pixel
+  save_depth_maps: true
+  save_coloured_depth: true
+  save_point_clouds: true
+  point_cloud_subsample: 1
 
 evaluation:
-  depth_metrics: false           # requires ground-truth depth (set true if GT available)
-  log_n_sample_images: 8        # how many depth samples to upload to W&B
+  depth_metrics: true            # now uses GT depth from NYU
+  log_n_sample_images: 8
 
 logging:
   log_dir: "artifacts/logs"
