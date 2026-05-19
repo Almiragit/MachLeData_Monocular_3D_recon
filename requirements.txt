@@ -6,6 +6,9 @@ Pillow>=10.0.0
 matplotlib>=3.8.0
 pyyaml>=6.0.1
 tqdm>=4.66.0
+# ─── Data Visualization ───────────────
+h5py
+ipynb
 # ─── Computer Vision (used by MIDAS_Small) ─────────────────────────────
 
 timm

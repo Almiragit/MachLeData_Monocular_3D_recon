@@ -50,3 +50,9 @@ Thumbs.db
 # Large point cloud files
 *.ply
 outputs/
+# extra files not importaint
+notebooks/extra/
+notebooks/wandb/
+src/registry/wandb/
+src/data/request_data
+src/training/wandb/
