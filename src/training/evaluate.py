@@ -1,102 +1,158 @@
-"""
-src/training/evaluate.py
-------------------------
-Standalone evaluation script — run on val or test split.
-
-Usage:
-    python src/training/evaluate.py --checkpoint artifacts/checkpoints/best_model.pth
-    python src/training/evaluate.py --checkpoint artifacts/checkpoints/best_model.pth --split test
-"""
-
-import argparse
+import os
 import sys
-from pathlib import Path
-
 import torch
+from torch.utils.data import DataLoader
+import numpy as np
+from tqdm import tqdm
 import wandb
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-from src.data.dataset import build_dataloaders
-from src.models.model import build_model
-from src.utils import (
-    compute_depth_metrics,
-    get_device,
-    load_checkpoint,
-    load_configs,
-    set_seed,
+# ==========================================================
+# 1. RESOLVE ABSOLUTE SYSTEM PATHS
+# ==========================================================
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+
+REPO_PATH = os.path.join(BASE_DIR, 'src', 'models', 'Depth-Anything-V2')
+if REPO_PATH not in sys.path:
+    sys.path.insert(0, REPO_PATH)
+
+NOTEBOOKS_DIR = os.path.join(BASE_DIR, "notebooks")
+if NOTEBOOKS_DIR not in sys.path:
+    sys.path.insert(0, NOTEBOOKS_DIR)
+
+from ipynb.fs.full.DAV2_Hybrid import load_hybrid_model
+from train import NYUDataset, SILogLoss 
+
+# ==========================================================
+# 2. W&B CONFIGURATION (CRITICAL FOR MERGING FILES)
+# ==========================================================
+# ⚠️ REPLACE THIS STRING WITH YOUR ACTUAL 8-CHARACTER RUN ID FROM YOUR W&B OVERVIEW PAGE!
+YOUR_RUN_ID = "YOUR_ACTUAL_RUN_ID_HERE" 
+
+VAL_DATA_PATH = os.path.join(BASE_DIR, "src", "data", "data", "processed", "val")
+
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+print(f"Running evaluation on device target: {device}")
+
+# RESUME THE PREVIOUS RUN SAFELY
+print(f"Connecting and merging into W&B run folder: hybrid-decoder-v1-run (ID: {YOUR_RUN_ID})")
+run = wandb.init(
+    project="Monocular-3D-Reconstruction",
+    id=YOUR_RUN_ID,
+    resume="allow"
 )
 
+# ==========================================================
+# 3. LOAD LOCAL WEIGHTS DIRECTLY (SMART SEARCH)
+# ==========================================================
+FILENAME = "latest_hybrid_model.pth"
 
-def evaluate(model, loader, device, debug: bool = False) -> dict:
-    model.eval()
-    all_metrics = []
-    n_batches = 5 if debug else len(loader)
+# List of potential places the training loop might have dropped the file
+possible_paths = [
+    os.path.join(BASE_DIR, FILENAME),                          # Root folder
+    os.path.join(BASE_DIR, "src", "training", FILENAME),       # src/training/
+    os.path.join(os.path.dirname(__file__), FILENAME),         # Current directory
+    os.path.join(BASE_DIR, "checkpoints", FILENAME)            # checkpoints folder
+]
 
-    with torch.no_grad():
-        for i, (rgb, depth) in enumerate(loader):
-            if i >= n_batches:
-                break
-            rgb = rgb.to(device, non_blocking=True)
-            depth = depth.to(device, non_blocking=True)
-            pred = model(rgb)
-            all_metrics.append(compute_depth_metrics(pred, depth))
+weights_path = None
+for path in possible_paths:
+    if os.path.exists(path):
+        weights_path = path
+        break
 
-    avg = {k: sum(m[k] for m in all_metrics) / len(all_metrics) for k in all_metrics[0]}
-    return avg
-
-
-def main():
-    parser = argparse.ArgumentParser(description="Evaluate depth model")
-    parser.add_argument("--checkpoint", type=str,
-                        default="artifacts/checkpoints/best_model.pth")
-    parser.add_argument("--split", type=str, default="val",
-                        choices=["val", "test"])
-    parser.add_argument("--paths_config", type=str, default="configs/paths.yaml")
-    parser.add_argument("--train_config", type=str, default="configs/train.yaml")
-    parser.add_argument("--debug", action="store_true")
-    parser.add_argument("--log_wandb", action="store_true",
-                        help="Log results to W&B (requires active run or will create one)")
-    args = parser.parse_args()
-
-    cfg = load_configs(args.paths_config, args.train_config)
-    set_seed(cfg["training"]["seed"])
-    device = get_device()
-
-    # Load model
-    model = build_model(cfg["model"]["architecture"]).to(device)
-    ckpt = load_checkpoint(args.checkpoint, device)
-    model.load_state_dict(ckpt["model_state"])
-    print(f"[INFO] Loaded weights from: {args.checkpoint}")
-
-    # Build loader for desired split
-    loaders = build_dataloaders(
-        processed_dir=cfg["data"]["processed"],
-        batch_size=cfg["training"]["batch_size"],
-        num_workers=cfg["training"]["num_workers"],
-        img_size=(cfg["model"]["img_height"], cfg["model"]["img_width"]),
-        split_json=cfg["splits"]["json_path"],
+if weights_path is None:
+    raise FileNotFoundError(
+        f"Could not locate '{FILENAME}' automatically.\n"
+        f"Please manually check your folders and move it to your root project folder:\n"
+        f"-> C:\\Users\\kanha\\Documents\\MachLeData\\"
     )
 
-    metrics = evaluate(model, loaders[args.split], device, debug=args.debug)
+print(f"🎯 Found weights file successfully at: {weights_path}")
 
-    # Print results
-    print(f"\n{'='*50}")
-    print(f"  Evaluation on [{args.split}] split")
-    print(f"{'='*50}")
-    for k, v in metrics.items():
-        print(f"  {k:<12} : {v:.4f}")
-    print(f"{'='*50}\n")
+# Load model structure and local weights
+model = load_hybrid_model(encoder='vitb', device=device)
+model.load_state_dict(torch.load(weights_path, map_location=device))
+model.eval() 
 
-    # Optional W&B log
-    if args.log_wandb:
-        run = wandb.init(
-            project=cfg["experiment"]["project"],
-            job_type="evaluation",
-            name=f"eval_{args.split}",
-        )
-        wandb.log({f"eval_{args.split}/{k}": v for k, v in metrics.items()})
-        wandb.finish()
+# ==========================================================
+# 4. PREPARE VALIDATION LOADER
+# ==========================================================
+val_dataset = NYUDataset(VAL_DATA_PATH)
+val_loader = DataLoader(val_dataset, batch_size=4, shuffle=False, num_workers=0)
 
+criterion = SILogLoss()
 
-if __name__ == "__main__":
-    main()
+# Metrics storage arrays
+total_val_loss = 0
+all_mae, all_rmse, all_abs_rel = [], [], []
+all_delta1, all_delta2, all_delta3 = [], [], []
+
+print(f"\n--- Starting evaluation over {len(val_dataset)} validation samples ---")
+
+# ==========================================================
+# 5. EVALUATION LOOP (With Live Line Trajectory Tracking)
+# ==========================================================
+with torch.no_grad():
+    for batch_idx, (images, depths) in enumerate(tqdm(val_loader, desc="Evaluating")):
+        images, depths = images.to(device), depths.to(device)
+        
+        # Predict pass
+        outputs = model(images)
+        outputs = torch.clamp(outputs, min=0.1, max=10.0)
+        
+        # 1. Compute validation loss
+        loss = criterion(outputs, depths)
+        total_val_loss += loss.item()
+        
+        # 2. Compute quantitative metrics pixel-by-pixel
+        valid_mask = (depths > 0) & (depths <= 10.0)
+        if not valid_mask.any():
+            continue
+            
+        pred_valid = outputs[valid_mask]
+        gt_valid = depths[valid_mask]
+        
+        # Metric formulas implementation
+        all_mae.append(torch.mean(torch.abs(pred_valid - gt_valid)).item())
+        all_rmse.append(torch.sqrt(torch.mean((pred_valid - gt_valid) ** 2)).item())
+        all_abs_rel.append(torch.mean(torch.abs(pred_valid - gt_valid) / gt_valid).item())
+        
+        # Threshold Accuracies (delta brackets)
+        ratios = torch.max(pred_valid / gt_valid, gt_valid / pred_valid)
+        all_delta1.append((ratios < 1.25).float().mean().item())
+        all_delta2.append((ratios < 1.25 ** 2).float().mean().item())
+        all_delta3.append((ratios < 1.25 ** 3).float().mean().item())
+
+        # 🚀 LIVE LINE LOGGING: Every 5 batches, calculate the running average 
+        # and push it to W&B to build a moving trajectory line on your charts.
+        if batch_idx % 5 == 0:
+            wandb.log({
+                "val_loss_trajectory": total_val_loss / (batch_idx + 1),
+                "val_RMSE_trajectory": np.mean(all_rmse),
+                "val_MAE_trajectory": np.mean(all_mae),
+                "val_delta2_trajectory": np.mean(all_delta2),
+                "val_delta3_trajectory": np.mean(all_delta3),
+            }, step=batch_idx)
+
+# ==========================================================
+# 6. FINAL SUMMARY REPORT
+# ==========================================================
+metrics = {
+    "final_val_loss_SILog": total_val_loss / len(val_loader),
+    "final_val_MAE": np.mean(all_mae),
+    "final_val_RMSE": np.mean(all_rmse),
+    "final_val_abs_rel": np.mean(all_abs_rel),
+    "final_val_delta1": np.mean(all_delta1),
+    "final_val_delta2": np.mean(all_delta2),
+    "final_val_delta3": np.mean(all_delta3),
+}
+
+print("\n================ FINAL EVALUATION REPORT ================")
+for name, value in metrics.items():
+    print(f"📈 {name:<20}: {value:.4f}")
+print("===========================================================")
+
+# Log final overall summary markers
+wandb.log(metrics)
+run.finish()
+print("\n🎉 Success! Evaluation complete. Check W&B for your new trajectory charts.")
