@@ -6,7 +6,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc g++ \
     libglib2.0-0 libsm6 libxext6 libxrender-dev \
-    libgl1-mesa-glx \
+    libgl1 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
@@ -26,13 +26,15 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Runtime system libs (OpenCV needs libGL)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libglib2.0-0 libsm6 libxext6 libxrender-dev libgl1-mesa-glx \
+    libglib2.0-0 libsm6 libxext6 libxrender-dev libgl1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy source — DaV2 checkpoint dir is mounted at runtime via docker-compose volume
 COPY src/ ./src/
 COPY configs/ ./configs/
+COPY app/__init__.py ./app/__init__.py
 COPY app/api/ ./app/api/
+COPY app/monitoring/ ./app/monitoring/
 
 RUN mkdir -p artifacts/checkpoints artifacts/logs outputs
 

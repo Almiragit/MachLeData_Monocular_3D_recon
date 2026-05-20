@@ -33,6 +33,13 @@ train ─────────────────► │                
 
 ## Quick Start
 
+### Prerequisites
+
+- Python **3.11**
+- Docker Desktop (Docker Engine + Docker Compose)
+- DVC installed (`pip install dvc`)
+- Optional but recommended: Conda/Mamba env
+
 ```bash
 # 1. Clone and activate environment
 git clone <repo-url>
@@ -58,8 +65,22 @@ dvc repro evaluate
 # 7. Push to W&B Registry
 dvc repro push_registry
 
+# 8. (Optional) Run retrain trigger once
+python src/training/retrain_trigger.py --once
+
 # Or run everything:
 dvc repro
+```
+
+### Windows (cmd) quick demo start
+
+```bat
+docker compose up -d --build
+docker compose ps
+start http://localhost:8501
+start http://localhost:8000/docs
+start http://localhost:9090
+start http://localhost:3000
 ```
 
 ---
@@ -105,7 +126,7 @@ dvc repro
 
 ```bash
 # Start all services
-docker-compose up --build
+docker compose up -d --build
 
 # Or run individually (development)
 uvicorn app.api.main:app --reload --port 8000
@@ -136,6 +157,19 @@ streamlit run app/frontend/app.py
 ```
 Grafana Alert → Prometheus → retrain_trigger.py → dvc repro → new outputs
 ```
+
+### Retrain trigger usage
+```bash
+# One-shot check (CI/cron/manual validation)
+python src/training/retrain_trigger.py --once
+
+# Continuous loop (default check interval: 300s)
+python src/training/retrain_trigger.py
+```
+
+Requirements:
+- Prometheus reachable at `http://localhost:9090`
+- Drift metric `drift_alert_triggered` available via Prometheus scrape of `/metrics`
 
 ---
 
@@ -205,3 +239,19 @@ MachLeData/
 | **Streamlit** | Web frontend + 3D Plotly visualisation |
 | **Prometheus + Grafana** | Drift monitoring + alerting |
 | **pytest** | Unit tests (loss functions, drift, configs) |
+
+---
+
+## Troubleshooting (quick)
+
+If a service does not load, run:
+
+```bash
+docker compose ps
+docker compose logs --tail=120 api frontend
+```
+
+Common checks:
+- API should be `healthy`
+- Frontend should be `Up`
+- `http://localhost:8000/health` should return status `ok`
