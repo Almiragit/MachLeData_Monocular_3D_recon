@@ -17,6 +17,7 @@ import argparse
 import os
 import sys
 from pathlib import Path
+from datetime import datetime
 
 import torch
 import torch.nn as nn
@@ -150,10 +151,24 @@ def main():
     set_seed(42)
     device = get_device()
 
+    # ── W&B run naming/grouping ───────────────────────────────────────────────
+    mode = "debug" if args.debug else "full"
+    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+    encoder = cfg["model"].get("encoder", "enc")
+    run_name = (
+        f"train-{cfg['experiment']['name']}-{encoder}"
+        f"-e{cfg['training']['epochs']}-bs{cfg['training']['batch_size']}"
+        f"-lr{cfg['training']['learning_rate']}-{mode}-{ts}"
+    )
+    run_group = cfg["experiment"]["name"]
+
     # ── W&B ──────────────────────────────────────────────────────────────────
     run = wandb.init(
+        entity=cfg["experiment"].get("entity"),
         project=cfg["experiment"]["project"],
-        name=cfg["experiment"]["name"] + "-finetune",
+        job_type="training",
+        group=run_group,
+        name=run_name,
         tags=cfg["experiment"]["tags"] + ["finetune", "hybrid"],
         config={
             "epochs": cfg["training"]["epochs"],

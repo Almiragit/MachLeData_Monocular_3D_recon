@@ -13,6 +13,7 @@ import argparse
 import os
 import sys
 from pathlib import Path
+from datetime import datetime
 
 import numpy as np
 import torch
@@ -160,10 +161,18 @@ def main():
 
     # ── Optional W&B log ─────────────────────────────────────────────────────
     if args.log_wandb:
+        mode = "debug" if args.debug else "full"
+        ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+        encoder = cfg["model"].get("encoder", "enc")
+        run_name = (
+            f"eval-{cfg['experiment']['name']}-{encoder}-{args.split}-{mode}-{ts}"
+        )
         run = wandb.init(
+            entity=cfg["experiment"].get("entity"),
             project=cfg["experiment"]["project"],
             job_type="evaluation",
-            name=f"eval_{args.split}",
+            group=cfg["experiment"]["name"],
+            name=run_name,
         )
         wandb.log({f"eval/{k}": v for k, v in metrics.items()})
         wandb.finish()

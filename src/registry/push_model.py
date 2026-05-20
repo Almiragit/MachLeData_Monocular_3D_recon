@@ -11,6 +11,7 @@ Usage:
 import argparse
 import sys
 from pathlib import Path
+from datetime import datetime
 
 import wandb
 
@@ -20,15 +21,20 @@ from src.utils import load_configs
 
 def push_to_registry(
     checkpoint_path: str,
+    entity: str | None,
     project: str,
     model_name: str,
     metadata: dict | None = None,
 ) -> str:
     """Upload checkpoint to W&B Model Registry. Returns version string."""
+    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+    run_name = f"registry-{model_name}-{ts}"
     run = wandb.init(
+        entity=entity,
         project=project,
         job_type="model-registry",
-        name=f"push-{model_name}",
+        group=model_name,
+        name=run_name,
     )
 
     artifact = wandb.Artifact(
@@ -59,6 +65,7 @@ def main():
 
     push_to_registry(
         checkpoint_path=args.checkpoint,
+        entity=cfg["experiment"].get("entity"),
         project=cfg["experiment"]["project"],
         model_name=cfg["experiment"]["name"] + "-finetuned",
         metadata={
