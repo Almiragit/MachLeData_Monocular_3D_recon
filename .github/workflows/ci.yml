@@ -2,21 +2,20 @@ name: MLOps CI/CD Pipeline
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, dev ]
   pull_request:
     branches: [ main ]
   workflow_dispatch:
 
 env:
   PYTHON_VERSION: "3.11"
-  DOCKER_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/monocular-3d-api
 
 jobs:
   # ─────────────────────────────────────────────────────────────────────────────
-  # JOB 1: Lint & basic import checks
+  # JOB 1: Lint & Import Checks
   # ─────────────────────────────────────────────────────────────────────────────
   lint:
-    name: Lint & Import Checks
+    name: Lint & Config Validation
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -26,7 +25,7 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
 
-      - name: Install lint deps
+      - name: Install deps
         run: pip install flake8 pyyaml
 
       - name: Flake8
@@ -50,51 +49,12 @@ jobs:
           "
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # JOB 2: Sanity inference run (debug mode — no real data needed)
-  # Only runs on push to main or manual trigger
+  # JOB 2: Unit Tests (pytest)
   # ─────────────────────────────────────────────────────────────────────────────
-  sanity-inference:
-    name: Sanity Inference (debug)
+  test:
+    name: Unit Tests
     runs-on: ubuntu-latest
     needs: lint
-    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive   # pulls Depth-Anything-V2 if added as submodule
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          cache: pip
-
-      - name: Install dependencies
-        run: |
-          pip install --upgrade pip
-          # Install only what's needed for sanity check (skip heavy deps)
-          pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-          pip install wandb pyyaml numpy pillow opencv-python-headless open3d
-
-      - name: Login to W&B
-        run: wandb login ${{ secrets.WANDB_API_KEY }}
-
-      - name: Run sanity inference (debug=5 images)
-        run: |
-          python src/training/train.py --debug --split val
-        env:
-          WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
-        continue-on-error: true   # don't block CI if no real data on runner
-
-  # ─────────────────────────────────────────────────────────────────────────────
-  # JOB 3: Push model outputs to W&B Registry (only on main)
-  # ─────────────────────────────────────────────────────────────────────────────
-  push-registry:
-    name: Push to W&B Registry
-    runs-on: ubuntu-latest
-    needs: sanity-inference
-    if: github.ref == 'refs/heads/main'
-
     steps:
       - uses: actions/checkout@v4
 
@@ -104,23 +64,55 @@ jobs:
           cache: pip
 
       - name: Install deps
-        run: pip install wandb pyyaml
+        run: |
+          pip install --upgrade pip
+          pip install pytest pyyaml numpy
 
-      - name: Push model artifact
-        run: python src/registry/push_model.py
-        env:
-          WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
-        continue-on-error: true
+      - name: Run tests
+        run: pytest tests/ -v
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # JOB 4: Build & push Docker image
+  # JOB 3: DVC Pipeline (sanity check)
+  # Runs DVC stages that don't require real data or GPU
   # ─────────────────────────────────────────────────────────────────────────────
-  docker-build:
-    name: Build & Push Docker Image
+  dvc-check:
+    name: DVC Pipeline Check
     runs-on: ubuntu-latest
     needs: lint
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install DVC
+        run: pip install dvc pyyaml numpy
+
+      - name: Check DVC dag
+        run: dvc dag
+
+      - name: Validate pipeline syntax
+        run: |
+          python -c "
+          import yaml
+          with open('dvc.yaml') as f:
+              stages = yaml.safe_load(f)['stages']
+          print(f'Pipeline has {len(stages)} stages:')
+          for name in stages:
+              print(f'  - {name}')
+          "
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # JOB 4: Build & Push Docker Image (only on main)
+  # ─────────────────────────────────────────────────────────────────────────────
+  docker-build:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
 
@@ -134,7 +126,7 @@ jobs:
       - uses: docker/metadata-action@v5
         id: meta
         with:
-          images: ${{ env.DOCKER_IMAGE }}
+          images: ${{ secrets.DOCKERHUB_USERNAME }}/monocular-3d-api
           tags: |
             type=ref,event=branch
             type=sha,prefix=sha-,format=short
