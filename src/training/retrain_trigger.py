@@ -58,15 +58,16 @@ def query_prometheus(metric: str) -> float | None:
 # ─── Retraining trigger ───────────────────────────────────────────────────────
 def trigger_retraining() -> bool:
     """
-    Trigger the DVC inference pipeline re-run.
-    In a real pipeline this would kick off full retraining if the model
-    supports fine-tuning. For DaV2 (inference-only), we re-run the
-    data pipeline to refresh outputs with the latest data.
+    Trigger the current DVC training pipeline re-run.
+    Uses the stage names defined in dvc.yaml:
+      prepare_data -> train -> compute_baseline -> evaluate -> push_registry
     """
     print("[RetainTrigger] 🚀 Triggering DVC pipeline re-run...")
     try:
+        stages = ["prepare_data", "train", "compute_baseline", "evaluate", "push_registry"]
+        print(f"[RetainTrigger] Running: dvc repro --force {' '.join(stages)}")
         result = subprocess.run(
-            ["dvc", "repro", "--force", "preprocess", "inference_val", "inference_test"],
+            ["dvc", "repro", "--force", *stages],
             capture_output=False,
             timeout=3600,   # 1 hour max
         )
