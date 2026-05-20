@@ -57,7 +57,21 @@ stages:
       - artifacts/logs/train_metrics.csv:
           cache: false
 
-  # ── 4. Evaluate best model on test split ─────────────────────────────────────
+  # ── 4. Compute drift baseline from validation split ──────────────────────────
+  compute_baseline:
+    cmd: python src/monitoring/compute_baseline.py
+    desc: "Compute drift reference statistics from val split for FastAPI monitoring"
+    deps:
+      - src/monitoring/compute_baseline.py
+      - src/monitoring/__init__.py
+      - configs/paths.yaml
+      - data/nyu/processed/val
+    outs:
+      - artifacts/logs/baseline.json:
+          cache: false
+          persist: true
+
+  # ── 5. Evaluate best model on test split ─────────────────────────────────────
   evaluate:
     cmd: python src/training/evaluate.py --split test
     desc: "Evaluate best checkpoint on NYU test split"
@@ -74,7 +88,7 @@ stages:
       - artifacts/logs/eval_metrics.csv:
           cache: false
 
-  # ── 5. Push best model to W&B Registry ──────────────────────────────────────
+  # ── 6. Push best model to W&B Registry ──────────────────────────────────────
   push_registry:
     cmd: python src/registry/push_model.py
     desc: "Push best checkpoint to W&B Model Registry"

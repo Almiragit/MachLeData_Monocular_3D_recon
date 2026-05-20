@@ -16,6 +16,7 @@ Run locally:
 
 import base64
 import io
+import json
 import os
 import sys
 import time
@@ -32,7 +33,11 @@ from prometheus_fastapi_instrumentator import Instrumentator
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 from src.models.model import build_model
 from src.utils import get_device, load_configs
-from app.monitoring.drift_detector import drift_detector, extract_image_stats
+from app.monitoring.drift_detector import (
+    ImageStats,
+    drift_detector,
+    extract_image_stats,
+)
 
 # ─── App setup ────────────────────────────────────────────────────────────────
 app = FastAPI(
@@ -70,9 +75,31 @@ def _load_model():
     print("[API] ✓ DaV2 model loaded and ready")
 
 
+def _load_baseline():
+    """Load drift baseline from artifacts/logs/baseline.json (created by compute_baseline.py)."""
+    baseline_path = os.path.join(
+        os.path.dirname(cfg["artifacts"]["logs"]), "baseline.json"
+    )
+    if not os.path.exists(baseline_path):
+        print(f"[API] WARNING: No baseline found at {baseline_path}")
+        print("[API] Drift detection will be inactive until baseline is computed.")
+        print("[API] Run: python src/monitoring/compute_baseline.py")
+        return
+
+    try:
+        with open(baseline_path) as f:
+            data = json.load(f)
+        stats_list = [ImageStats(**s) for s in data["stats"]]
+        drift_detector.set_reference(stats_list)
+        print(f"[API] ✓ Drift baseline loaded: {len(stats_list)} samples")
+    except Exception as e:
+        print(f"[API] ERROR loading baseline: {e}")
+
+
 @app.on_event("startup")
 async def startup():
     _load_model()
+    _load_baseline()
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
