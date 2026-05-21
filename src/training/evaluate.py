@@ -9,14 +9,18 @@ Usage:
     python src/training/evaluate.py --split test --log_wandb
 """
 
+import sys
+from pathlib import Path
+
+# Ensure project root is importable when run as script: python src/training/evaluate.py
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+
 from src.utils import get_device, load_checkpoint, load_configs, set_seed
 from src.training.train import NYUDataset
 from src.models.losses import SILogLoss
 from src.models.model import build_hybrid_model
 import argparse
 import os
-import sys
-from pathlib import Path
 from datetime import datetime
 
 import numpy as np
@@ -24,9 +28,6 @@ import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 import wandb
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-
 
 # ─── Metrics ──────────────────────────────────────────────────────────────────
 @torch.no_grad()

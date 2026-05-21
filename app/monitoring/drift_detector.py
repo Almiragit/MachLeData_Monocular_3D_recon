@@ -175,7 +175,7 @@ class DriftDetector:
         # Start background thread
         self._thread = threading.Thread(target=self._monitor_loop, daemon=True)
         self._thread.start()
-        print("[DriftDetector] ✓ Background monitor started")
+        print("[DriftDetector] [OK] Background monitor started")
 
     def set_reference(self, stats_list: list[ImageStats]) -> None:
         """Set baseline from training/val split statistics."""
@@ -246,10 +246,10 @@ class DriftDetector:
                 DRIFT_ALERT_TRIGGERED.set(1.0 if report.alert else 0.0)
 
                 if report.alert:
-                    print(f"[DriftDetector] ⚠️  DRIFT ALERT: {report.summary}")
+                    print(f"[DriftDetector] [ALERT] DRIFT ALERT: {report.summary}")
                 else:
                     print(
-                        f"[DriftDetector] ✓ No drift (PSI_brightness={report.psi_brightness:.3f})")
+                        f"[DriftDetector] [OK] No drift (PSI_brightness={report.psi_brightness:.3f})")
 
             except Exception as e:
                 print(f"[DriftDetector] Error in monitor loop: {e}")

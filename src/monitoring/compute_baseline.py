@@ -17,23 +17,23 @@ Output:
     and aggregate statistics (mean, std, percentiles).
 """
 
+import sys
+from pathlib import Path
+
+# Ensure project root + app package are importable when run as script.
+_ROOT = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(_ROOT))
+sys.path.insert(0, str(_ROOT / "app"))
+
 from monitoring.drift_detector import extract_image_stats
 import argparse
 import json
 import os
-import sys
-from pathlib import Path
 
 import cv2
 import numpy as np
 import torch
 from tqdm import tqdm
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-
-# Import from drift_detector to ensure compatibility
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "app"))
-
 
 def load_nyu_file(path: str) -> tuple[np.ndarray, np.ndarray | None]:
     """
