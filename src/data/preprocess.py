@@ -94,7 +94,7 @@ def process_and_save(pairs: list[dict], out_dir: str, split_name: str) -> None:
         depth.save(depth_out / Path(pair["depth"]).name)
 
         if (i + 1) % 200 == 0 or (i + 1) == len(pairs):
-            print(f"  [{split_name}] {i+1}/{len(pairs)} processed")
+            print(f"  [{split_name}] {i + 1}/{len(pairs)} processed")
 
 
 # ─── Main ─────────────────────────────────────────────────────────────────────

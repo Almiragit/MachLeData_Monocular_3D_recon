@@ -152,12 +152,12 @@ def main():
     metrics = evaluate(model, loader, criterion, device, debug=args.debug)
 
     # ── Print results ─────────────────────────────────────────────────────────
-    print(f"\n{'='*55}")
+    print(f"\n{'=' * 55}")
     print(f"  Evaluation on [{args.split}] split — {len(ds)} samples")
-    print(f"{'='*55}")
+    print(f"{'=' * 55}")
     for k, v in metrics.items():
         print(f"  {k:<12} : {v:.4f}")
-    print(f"{'='*55}\n")
+    print(f"{'=' * 55}\n")
 
     # ── Optional W&B log ─────────────────────────────────────────────────────
     if args.log_wandb:
@@ -167,7 +167,7 @@ def main():
         run_name = (
             f"eval-{cfg['experiment']['name']}-{encoder}-{args.split}-{mode}-{ts}"
         )
-        run = wandb.init(
+        wandb.init(
             entity=cfg["experiment"].get("entity"),
             project=cfg["experiment"]["project"],
             job_type="evaluation",

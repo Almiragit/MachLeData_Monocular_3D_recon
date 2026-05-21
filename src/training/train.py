@@ -92,7 +92,7 @@ class NYUDataset(torch.utils.data.Dataset):
 def train_one_epoch(model, loader, optimizer, criterion, device, epoch, epochs):
     model.train()
     total_loss = 0
-    pbar = tqdm(loader, desc=f"Epoch {epoch+1}/{epochs}")
+    pbar = tqdm(loader, desc=f"Epoch {epoch + 1}/{epochs}")
 
     for images, depths in pbar:
         images, depths = images.to(device), depths.to(device)

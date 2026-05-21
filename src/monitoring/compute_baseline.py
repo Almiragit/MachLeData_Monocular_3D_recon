@@ -156,15 +156,15 @@ def compute_baseline(
     print(f"[Baseline] ✓ Saved baseline to {output_path}")
 
     # Print summary
-    print(f"\n{'='*50}")
+    print(f"\n{'=' * 50}")
     print(f"  Baseline Summary ({len(stats_list)} samples)")
-    print(f"{'='*50}")
+    print(f"{'=' * 50}")
     for metric in ["brightness", "contrast", "blur"]:
         agg = baseline_report["aggregates"][metric]
         print(f"  {metric:<12} mean={agg['mean']:.2f}  "
               f"std={agg['std']:.2f}  "
               f"p5={agg['p5']:.2f}  p95={agg['p95']:.2f}")
-    print(f"{'='*50}\n")
+    print(f"{'=' * 50}\n")
 
     return stats_list
 
