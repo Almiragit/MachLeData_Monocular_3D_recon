@@ -171,7 +171,6 @@ def test_ks_computation():
 def test_extract_image_stats():
     """extract_image_stats returns valid ImageStats."""
     import numpy as np
-    import cv2
     from app.monitoring.drift_detector import extract_image_stats
 
     # Create a synthetic image

@@ -17,6 +17,7 @@ Output:
     and aggregate statistics (mean, std, percentiles).
 """
 
+from monitoring.drift_detector import extract_image_stats
 import argparse
 import json
 import os
@@ -32,7 +33,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 # Import from drift_detector to ensure compatibility
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "app"))
-from monitoring.drift_detector import ImageStats, extract_image_stats
 
 
 def load_nyu_file(path: str) -> tuple[np.ndarray, np.ndarray | None]:
@@ -90,7 +90,8 @@ def compute_baseline(
         import random
         random.seed(42)
         pt_files = random.sample(pt_files, max_samples)
-        print(f"[Baseline] Sampled {len(pt_files)} files from {len(pt_files)} total")
+        print(
+            f"[Baseline] Sampled {len(pt_files)} files from {len(pt_files)} total")
 
     stats_list = []
     skipped = 0
@@ -169,7 +170,8 @@ def compute_baseline(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Compute drift baseline from validation data")
+    parser = argparse.ArgumentParser(
+        description="Compute drift baseline from validation data")
     parser.add_argument("--data_dir", type=str, default="data/nyu/processed/val",
                         help="Directory with .pt files (default: data/nyu/processed/val)")
     parser.add_argument("--output", type=str, default="artifacts/logs/baseline.json",

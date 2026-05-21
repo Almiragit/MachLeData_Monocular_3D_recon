@@ -9,7 +9,6 @@ import json
 import os
 from pathlib import Path
 
-import numpy as np
 import torch
 from PIL import Image
 from torch.utils.data import DataLoader, Dataset
@@ -42,7 +41,8 @@ def get_transforms(split: str, img_size: tuple[int, int] = (480, 640)):
     ])
 
     depth_transform = transforms.Compose([
-        transforms.Resize((H, W), interpolation=transforms.InterpolationMode.NEAREST),
+        transforms.Resize(
+            (H, W), interpolation=transforms.InterpolationMode.NEAREST),
         transforms.ToTensor(),   # → (1, H, W) float32 in [0,1]
     ])
 
@@ -75,7 +75,8 @@ class DepthDataset(Dataset):
     ):
         self.split = split
         self.depth_scale = depth_scale
-        self.rgb_transform, self.depth_transform = get_transforms(split, img_size)
+        self.rgb_transform, self.depth_transform = get_transforms(
+            split, img_size)
 
         if split_json and os.path.exists(split_json):
             with open(split_json, "r") as f:

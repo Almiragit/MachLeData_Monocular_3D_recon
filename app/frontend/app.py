@@ -19,7 +19,6 @@ import base64
 import io
 import os
 
-import numpy as np
 import plotly.graph_objects as go
 import requests
 import streamlit as st
@@ -122,7 +121,8 @@ def call_predict_json(pil_img: Image.Image, subsample: int = 4) -> dict | None:
         )
         return None
     except requests.exceptions.HTTPError as e:
-        st.error(f"API error {e.response.status_code}: {e.response.text[:300]}")
+        st.error(
+            f"API error {e.response.status_code}: {e.response.text[:300]}")
         return None
 
 
@@ -143,9 +143,12 @@ def build_plotly_figure(pc: dict) -> go.Figure:
     )])
     fig.update_layout(
         scene=dict(
-            xaxis=dict(title="X", showbackground=False, color="rgba(255,255,255,0.4)"),
-            yaxis=dict(title="Depth", showbackground=False, color="rgba(255,255,255,0.4)"),
-            zaxis=dict(title="Y", showbackground=False, color="rgba(255,255,255,0.4)"),
+            xaxis=dict(title="X", showbackground=False,
+                       color="rgba(255,255,255,0.4)"),
+            yaxis=dict(title="Depth", showbackground=False,
+                       color="rgba(255,255,255,0.4)"),
+            zaxis=dict(title="Y", showbackground=False,
+                       color="rgba(255,255,255,0.4)"),
             bgcolor="rgba(0,0,0,0)",
         ),
         paper_bgcolor="rgba(0,0,0,0)",
@@ -215,7 +218,8 @@ if uploaded:
     col_orig, col_depth = st.columns(2)
     with col_orig:
         st.image(pil_img, use_container_width=True)
-        st.markdown('<p class="label">📷 Original Image</p>', unsafe_allow_html=True)
+        st.markdown('<p class="label">📷 Original Image</p>',
+                    unsafe_allow_html=True)
 
     with col_depth:
         placeholder = st.empty()

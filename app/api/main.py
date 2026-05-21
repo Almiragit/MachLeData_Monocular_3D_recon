@@ -14,6 +14,13 @@ Run locally:
     uvicorn app.api.main:app --reload --port 8000
 """
 
+from app.monitoring.drift_detector import (
+    ImageStats,
+    drift_detector,
+    extract_image_stats,
+)
+from src.utils import get_device, load_configs
+from src.models.model import build_model
 import base64
 import io
 import json
@@ -31,13 +38,6 @@ from PIL import Image
 from prometheus_fastapi_instrumentator import Instrumentator
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-from src.models.model import build_model
-from src.utils import get_device, load_configs
-from app.monitoring.drift_detector import (
-    ImageStats,
-    drift_detector,
-    extract_image_stats,
-)
 
 # ─── App setup ────────────────────────────────────────────────────────────────
 app = FastAPI(
@@ -116,7 +116,7 @@ def _depth_to_colormap_png(depth_norm: np.ndarray) -> bytes:
 
 
 def _build_point_cloud_json(depth_norm: np.ndarray, rgb: np.ndarray,
-                             subsample: int = 4) -> dict:
+                            subsample: int = 4) -> dict:
     """
     Build a lightweight point cloud dict suitable for JSON / Plotly.
     Returns {"x": [...], "y": [...], "z": [...], "colors": [...]}

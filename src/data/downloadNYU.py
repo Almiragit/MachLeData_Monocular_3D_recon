@@ -2,6 +2,7 @@ import os
 import requests
 from tqdm import tqdm
 
+
 def download_nyu_data(url, save_path):
     if os.path.exists(save_path):
         print(f"File already exists at {save_path}")
@@ -10,9 +11,9 @@ def download_nyu_data(url, save_path):
     print(f"Downloading NYU Depth V2 from {url}...")
     response = requests.get(url, stream=True)
     total_size = int(response.headers.get('content-length', 0))
-    
+
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
-    
+
     with open(save_path, 'wb') as file, tqdm(
         total=total_size, unit='iB', unit_scale=True
     ) as bar:
@@ -20,7 +21,8 @@ def download_nyu_data(url, save_path):
             size = file.write(data)
             bar.update(size)
 
+
 if __name__ == "__main__":
     NYU_URL = "http://horatio.cs.nyu.edu/mit/silberman/nyu_depth_v2/nyu_depth_v2_labeled.mat"
-    SAVE_DIR = "data/raw/nyu_depth_v2_labeled.mat"
+    SAVE_DIR = "data/nyu/raw/nyu_depth_v2_labeled.mat"
     download_nyu_data(NYU_URL, SAVE_DIR)

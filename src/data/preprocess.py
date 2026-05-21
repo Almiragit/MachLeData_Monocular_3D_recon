@@ -12,10 +12,8 @@ import argparse
 import json
 import os
 import random
-import shutil
 from pathlib import Path
 
-import numpy as np
 import yaml
 from PIL import Image
 

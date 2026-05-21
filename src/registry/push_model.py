@@ -8,6 +8,7 @@ Usage:
     python src/registry/push_model.py --checkpoint artifacts/checkpoints/best_model.pth
 """
 
+from src.utils import load_configs
 import argparse
 import sys
 from pathlib import Path
@@ -16,7 +17,6 @@ from datetime import datetime
 import wandb
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-from src.utils import load_configs
 
 
 def push_to_registry(
@@ -54,7 +54,8 @@ def push_to_registry(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Push model to W&B Model Registry")
+    parser = argparse.ArgumentParser(
+        description="Push model to W&B Model Registry")
     parser.add_argument("--checkpoint", type=str,
                         default="artifacts/checkpoints/best_model.pth")
     parser.add_argument("--paths_config", default="configs/paths.yaml")

@@ -19,7 +19,6 @@ import os
 import sys
 from pathlib import Path
 
-import cv2
 import numpy as np
 import torch
 import torch.nn as nn
@@ -74,11 +73,13 @@ class DepthAnythingWrapper(nn.Module):
             )
 
         if encoder not in _MODEL_CONFIGS:
-            raise ValueError(f"encoder must be one of {list(_MODEL_CONFIGS.keys())}")
+            raise ValueError(
+                f"encoder must be one of {list(_MODEL_CONFIGS.keys())}")
 
         self.encoder = encoder
         self.device = device or (
-            torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+            torch.device("cuda") if torch.cuda.is_available(
+            ) else torch.device("cpu")
         )
 
         # Build model
@@ -104,7 +105,8 @@ class DepthAnythingWrapper(nn.Module):
         self._model = self._model.to(self.device).eval()
 
         n_params = sum(p.numel() for p in self._model.parameters())
-        print(f"[Model] DaV2-{encoder} — {n_params:,} parameters (inference only)")
+        print(
+            f"[Model] DaV2-{encoder} — {n_params:,} parameters (inference only)")
 
     def infer_image(self, raw_bgr_image: np.ndarray, input_size: int = 518) -> np.ndarray:
         with torch.no_grad():
@@ -139,14 +141,17 @@ class HybridDepthModel(nn.Module):
         super().__init__()
 
         if not _DAV2_AVAILABLE:
-            raise ImportError("depth_anything_v2 not importable. Check _DAV2_ROOT.")
+            raise ImportError(
+                "depth_anything_v2 not importable. Check _DAV2_ROOT.")
 
         if encoder not in _MODEL_CONFIGS:
-            raise ValueError(f"encoder must be one of {list(_MODEL_CONFIGS.keys())}")
+            raise ValueError(
+                f"encoder must be one of {list(_MODEL_CONFIGS.keys())}")
 
         self.encoder = encoder
         self.device = device or (
-            torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+            torch.device("cuda") if torch.cuda.is_available(
+            ) else torch.device("cpu")
         )
         self.freeze_encoder = freeze_encoder
 
@@ -159,10 +164,12 @@ class HybridDepthModel(nn.Module):
         ckpt_path = os.path.join(ckpt_dir, _CHECKPOINT_NAMES[encoder])
 
         if os.path.exists(ckpt_path):
-            self._dav2.load_state_dict(torch.load(ckpt_path, map_location="cpu"))
+            self._dav2.load_state_dict(
+                torch.load(ckpt_path, map_location="cpu"))
             print(f"[HybridModel] ✓ Loaded DaV2-{encoder} pretrained weights")
         else:
-            print(f"[HybridModel] WARNING: checkpoint not found at {ckpt_path}")
+            print(
+                f"[HybridModel] WARNING: checkpoint not found at {ckpt_path}")
 
         # Reference the DPTHead as 'custom_decoder' (used by train.py optimizer)
         self.custom_decoder = self._dav2.depth_head
@@ -175,8 +182,10 @@ class HybridDepthModel(nn.Module):
 
         # Count trainable vs total params
         total = sum(p.numel() for p in self.parameters())
-        trainable = sum(p.numel() for p in self.parameters() if p.requires_grad)
-        print(f"[HybridModel] {total:,} total params | {trainable:,} trainable")
+        trainable = sum(p.numel()
+                        for p in self.parameters() if p.requires_grad)
+        print(
+            f"[HybridModel] {total:,} total params | {trainable:,} trainable")
 
         self.to(self.device)
 

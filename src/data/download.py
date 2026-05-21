@@ -26,7 +26,8 @@ def sync_from_s3(s3_uri: str, output_dir: str, profile: str | None = None,
     if dry_run:
         cmd += ["--dryrun"]
 
-    print(f"[INFO] {'DRY RUN: ' if dry_run else ''}Syncing {s3_uri} → {output_dir}")
+    print(
+        f"[INFO] {'DRY RUN: ' if dry_run else ''}Syncing {s3_uri} → {output_dir}")
 
     try:
         subprocess.run(cmd, check=True)
@@ -48,7 +49,8 @@ def sync_from_s3(s3_uri: str, output_dir: str, profile: str | None = None,
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Download dataset from AWS S3")
+    parser = argparse.ArgumentParser(
+        description="Download dataset from AWS S3")
     parser.add_argument(
         "--bucket",
         type=str,

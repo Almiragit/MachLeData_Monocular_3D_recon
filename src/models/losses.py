@@ -21,11 +21,22 @@ class SILogLoss(nn.Module):
 
     lambda=0.5 is the standard value used in the original paper.
     """
+
     def __init__(self, lambd: float = 0.5):
         super().__init__()
         self.lambd = lambd
 
+    @staticmethod
+    def _align_shapes(pred: torch.Tensor, target: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        """Align pred/target to the same shape (B,1,H,W) when needed."""
+        if pred.dim() == 3:
+            pred = pred.unsqueeze(1)
+        if target.dim() == 3:
+            target = target.unsqueeze(1)
+        return pred, target
+
     def forward(self, pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        pred, target = self._align_shapes(pred, target)
         mask = (target > 0).detach()
         if not mask.any():
             return torch.tensor(0.0, device=pred.device)
@@ -48,11 +59,22 @@ class BerHuLoss(nn.Module):
     Used as an alternative to SILog. Less sensitive to outliers.
     Threshold c = 0.2 * max(|pred - target|)
     """
+
     def __init__(self, threshold: float = 0.2):
         super().__init__()
         self.threshold = threshold
 
+    @staticmethod
+    def _align_shapes(pred: torch.Tensor, target: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        """Align pred/target to the same shape (B,1,H,W) when needed."""
+        if pred.dim() == 3:
+            pred = pred.unsqueeze(1)
+        if target.dim() == 3:
+            target = target.unsqueeze(1)
+        return pred, target
+
     def forward(self, pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        pred, target = self._align_shapes(pred, target)
         mask = (target > 0).detach()
         if not mask.any():
             return torch.tensor(0.0, device=pred.device)

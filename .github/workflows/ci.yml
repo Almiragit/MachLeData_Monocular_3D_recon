@@ -31,9 +31,8 @@ jobs:
       - name: Flake8
         run: |
           flake8 src/ app/ \
-            --select=E9,F63,F7,F82 \
-            --show-source \
-            --statistics \
+            --max-line-length=100 \
+            --ignore=E501,W503,E203 \
             --exclude=src/models/Depth-Anything-V2
 
       - name: Validate YAML configs

@@ -5,6 +5,7 @@
 experiment:
   name: "dav2-vitb-inference"
   project: "monocular-3d-recon"
+  entity: "MachLearning"
   tags: ["dav2", "vitb", "hybrid", "finetune"]
   notes: "Depth-Anything-V2 ViT-B with frozen DINOv2 + trainable DPTHead decoder"
 
