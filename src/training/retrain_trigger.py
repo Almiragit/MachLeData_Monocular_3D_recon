@@ -92,7 +92,7 @@ def log_retrain_event(reason: str, success: bool) -> None:
     """Append retrain event to log file."""
     import csv
     import os
-    from datetime import datetime
+    from datetime import datetime, timezone
 
     log_path = "artifacts/logs/retrain_log.csv"
     os.makedirs("artifacts/logs", exist_ok=True)
@@ -102,11 +102,11 @@ def log_retrain_event(reason: str, success: bool) -> None:
         writer = csv.writer(f)
         if write_header:
             writer.writerow(["timestamp", "reason", "success"])
-        writer.writerow([datetime.utcnow().isoformat(), reason, success])
+        writer.writerow([datetime.now(timezone.utc).isoformat(), reason, success])
 
 
 # ─── Main loop ────────────────────────────────────────────────────────────────
-def run(once: bool = False) -> None:
+def run(once: bool = False, dry_run: bool = False, force_alert: bool = False) -> None:
     consecutive_alerts = 0
     print(
         f"[RetainTrigger] Started. Checking Prometheus every {CHECK_INTERVAL_S}s")
@@ -114,7 +114,10 @@ def run(once: bool = False) -> None:
         f"[RetainTrigger] Will trigger after {CONSECUTIVE_ALERTS_NEEDED} consecutive alerts")
 
     while True:
-        alert_value = query_prometheus(DRIFT_ALERT_METRIC)
+        if force_alert:
+            alert_value = 1.0
+        else:
+            alert_value = query_prometheus(DRIFT_ALERT_METRIC)
 
         if alert_value is None:
             print("[RetainTrigger] WARN: Could not reach Prometheus - skipping check")
@@ -128,7 +131,11 @@ def run(once: bool = False) -> None:
             if consecutive_alerts >= CONSECUTIVE_ALERTS_NEEDED:
                 print(
                     "[RetainTrigger] Sustained drift confirmed -> triggering pipeline")
-                success = trigger_retraining()
+                if dry_run:
+                    print("[RetainTrigger] [DRY-RUN] Retraining would be triggered now")
+                    success = True
+                else:
+                    success = trigger_retraining()
                 log_retrain_event(
                     reason=f"sustained_drift_{CONSECUTIVE_ALERTS_NEEDED}_checks",
                     success=success,
@@ -149,7 +156,7 @@ def run(once: bool = False) -> None:
 
 
 def main():
-    global PROMETHEUS_URL, CHECK_INTERVAL_S
+    global PROMETHEUS_URL, CHECK_INTERVAL_S, CONSECUTIVE_ALERTS_NEEDED
     parser = argparse.ArgumentParser(
         description="Automated retraining trigger")
     parser.add_argument("--once", action="store_true",
@@ -158,12 +165,19 @@ def main():
                         help="Prometheus base URL")
     parser.add_argument("--interval", type=int, default=CHECK_INTERVAL_S,
                         help="Check interval in seconds")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="Simulate retrain trigger without running dvc repro")
+    parser.add_argument("--force-alert", action="store_true",
+                        help="Force alert_value=1.0 for trigger-path testing")
+    parser.add_argument("--alerts-needed", type=int, default=CONSECUTIVE_ALERTS_NEEDED,
+                        help="Override consecutive alerts needed before trigger")
     args = parser.parse_args()
 
     PROMETHEUS_URL = args.prometheus
     CHECK_INTERVAL_S = args.interval
+    CONSECUTIVE_ALERTS_NEEDED = args.alerts_needed
 
-    run(once=args.once)
+    run(once=args.once, dry_run=args.dry_run, force_alert=args.force_alert)
 
 
 if __name__ == "__main__":
