@@ -165,6 +165,12 @@ python src/training/retrain_trigger.py --once
 
 # Continuous loop (default check interval: 300s)
 python src/training/retrain_trigger.py
+
+# Dry-run simulation (no real dvc repro), force alert for demo/testing
+python src/training/retrain_trigger.py --once --dry-run --force-alert --alerts-needed 1
+
+# Auto-loop simulation (demonstrates automatic trigger path every few seconds)
+python src/training/retrain_trigger.py --dry-run --force-alert --alerts-needed 3 --interval 5
 ```
 
 Requirements:
@@ -178,9 +184,54 @@ Requirements:
 | Job | Runs on | What it does |
 |---|---|---|
 | `lint` | push to main/dev | Flake8 + YAML config validation |
-| `test` | push to main/dev | 12 pytest tests: structure, configs, losses, drift |
+| `test` | push to main/dev | 17 pytest tests: unit + smoke/integration (API + retrain trigger) |
 | `dvc-check` | push to main (or manual) | `dvc dag` + pipeline syntax check |
 | `docker-build` | push to main | Build + push Docker image to Docker Hub |
+
+---
+
+## Demo Runbook (Presentation-Ready)
+
+### 1) Validate code quality quickly
+```bash
+python -m pytest tests -q
+```
+
+### 2) Start full serving/monitoring stack
+```bash
+docker compose up -d --build
+docker compose ps
+```
+
+Open:
+- Streamlit: http://localhost:8501
+- FastAPI docs: http://localhost:8000/docs
+- Prometheus: http://localhost:9090
+- Grafana: http://localhost:3000
+
+### 3) Build drift baseline (fast debug run)
+```bash
+python src/monitoring/compute_baseline.py --debug
+```
+
+### 4) Show retrain trigger behavior without expensive retraining
+
+Healthy check:
+```bash
+python src/training/retrain_trigger.py --once
+```
+
+Forced trigger path (safe simulation):
+```bash
+python src/training/retrain_trigger.py --once --dry-run --force-alert --alerts-needed 1
+```
+
+### 5) (Optional) Show automatic trigger loop behavior
+```bash
+python src/training/retrain_trigger.py --dry-run --force-alert --alerts-needed 3 --interval 5
+```
+
+Stop with `Ctrl + C`.
 
 ---
 
@@ -216,7 +267,8 @@ MachLeData/
 │   ├── paths.yaml                 # Data paths
 │   └── train.yaml                 # Training hyperparameters
 ├── tests/
-│   └── test_basic.py              # 12 pytest tests
+│   ├── test_basic.py              # unit/config/loss/drift tests
+│   └── test_integration_smoke.py  # smoke tests for API + retrain trigger
 ├── .github/workflows/ci.yml       # CI/CD: lint → test → dvc → docker
 ├── Dockerfile + docker-compose.yml
 ├── dvc.yaml                       # 6-stage DVC pipeline

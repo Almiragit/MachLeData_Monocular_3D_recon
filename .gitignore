@@ -24,10 +24,12 @@ machle/
 # Jupyter
 .ipynb_checkpoints/
 *.ipynb_checkpoints
+.pytest_cache/
 
 # Data (tracked by DVC instead)
 data/raw/
 data/processed/
+data/
 
 # Model outputs (large files)
 outputs/
@@ -46,6 +48,12 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
+
+# Local experiment artifacts
+wandb/
+
+# Temp/accidental local files
+-r
 
 # Large point cloud files
 *.ply
