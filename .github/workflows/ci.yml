@@ -107,7 +107,7 @@ jobs:
           "
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # JOB 4: Build & Push Docker Image (only on main)
+  # JOB 4: Docker E2E Smoke Test (free disk first)
   # ─────────────────────────────────────────────────────────────────────────────
   docker-e2e-smoke:
     name: Docker E2E Smoke Test
@@ -115,6 +115,17 @@ jobs:
     needs: [lint, test]
     steps:
       - uses: actions/checkout@v4
+
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: false
 
       - name: Build and start services
         run: docker compose up -d --build api prometheus
@@ -168,8 +179,13 @@ jobs:
 
       - name: Cleanup
         if: always()
-        run: docker compose down -v
+        run: |
+          docker compose down -v
+          docker builder prune -af
 
+  # ─────────────────────────────────────────────────────────────────────────────
+  # JOB 5: Build & Push Docker Image (only on main, free disk first)
+  # ─────────────────────────────────────────────────────────────────────────────
   docker-build:
     name: Build Docker Image
     runs-on: ubuntu-latest
@@ -177,6 +193,17 @@ jobs:
     if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
+
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: false
 
       - uses: docker/setup-buildx-action@v3
 
@@ -202,4 +229,4 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-to: type=gha,mode=min
