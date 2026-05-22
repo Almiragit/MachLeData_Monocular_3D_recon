@@ -25,7 +25,7 @@ _ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(_ROOT))
 sys.path.insert(0, str(_ROOT / "app"))
 
-from monitoring.drift_detector import extract_image_stats
+from monitoring.drift_detector import extract_image_stats  # noqa: E402
 import argparse
 import json
 import os
@@ -34,6 +34,7 @@ import cv2
 import numpy as np
 import torch
 from tqdm import tqdm
+
 
 def load_nyu_file(path: str) -> tuple[np.ndarray, np.ndarray | None]:
     """

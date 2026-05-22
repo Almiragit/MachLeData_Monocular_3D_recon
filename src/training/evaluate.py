@@ -15,10 +15,10 @@ from pathlib import Path
 # Ensure project root is importable when run as script: python src/training/evaluate.py
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from src.utils import get_device, load_checkpoint, load_configs, set_seed
-from src.training.train import NYUDataset
-from src.models.losses import SILogLoss
-from src.models.model import build_hybrid_model
+from src.utils import get_device, load_checkpoint, load_configs, set_seed  # noqa: E402
+from src.training.train import NYUDataset  # noqa: E402
+from src.models.losses import SILogLoss  # noqa: E402
+from src.models.model import build_hybrid_model  # noqa: E402
 import argparse
 import os
 from datetime import datetime
@@ -28,6 +28,7 @@ import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 import wandb
+
 
 # ─── Metrics ──────────────────────────────────────────────────────────────────
 @torch.no_grad()
