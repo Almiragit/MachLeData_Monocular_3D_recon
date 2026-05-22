@@ -67,7 +67,7 @@ jobs:
       - name: Install deps
         run: |
           pip install --upgrade pip
-          pip install pytest pyyaml numpy scipy prometheus-client opencv-python torch
+          pip install pytest pyyaml numpy scipy prometheus-client opencv-python torch pillow
 
       - name: Run tests
         run: pytest tests/ -v
