@@ -35,10 +35,28 @@ train ─────────────────► │                
 
 ### Prerequisites
 
+**For the demo (serving + monitoring) — Docker Desktop only:**
+- Docker Desktop (includes Docker Engine + Docker Compose)
+
+**For training (full pipeline) — additionally:**
 - Python **3.11**
-- Docker Desktop (Docker Engine + Docker Compose)
-- DVC installed (`pip install dvc`)
-- Optional but recommended: Conda/Mamba env
+- DVC (`pip install dvc`)
+- NVIDIA GPU + CUDA (recommended for training speed)
+- W&B account (free) for experiment tracking
+
+---
+
+### Option A: Quick Demo — Docker only (5 seconds)
+
+```bash
+docker compose up -d --build
+```
+
+Then open http://localhost:8501 in your browser. No Python, no DVC, no W&B needed.
+
+---
+
+### Option B: Full Pipeline — DVC + Training (requires GPU)
 
 ```bash
 # 1. Clone and activate environment
@@ -50,37 +68,41 @@ pip install -r requirements.txt
 # 2. Login to W&B (for experiment tracking)
 wandb login
 
-# 3. Download NYU Depth V2 dataset + prepare .pt files
-dvc repro download_nyu prepare_data
-
-# 4. Fine-tune DaV2 Hybrid Decoder (10 epochs, frozen DINOv2)
-dvc repro train
-
-# 5. Compute drift baseline from validation split
-dvc repro compute_baseline
-
-# 6. Evaluate best checkpoint
-dvc repro evaluate
-
-# 7. Push to W&B Registry
-dvc repro push_registry
-
-# 8. (Optional) Run retrain trigger once
-python src/training/retrain_trigger.py --once
-
-# Or run everything:
+# 3. Run everything at once
 dvc repro
 ```
 
-### Windows (cmd) quick demo start
+### Quick demo start (any OS)
 
-```bat
+> **No GPU needed.** Just Docker. The pre-trained model runs inference out of the box.
+
+**Step 1 — Start everything:**
+```bash
 docker compose up -d --build
+```
+
+**Step 2 — Open in browser:**
+
+| OS | Command |
+|---|---|
+| **Windows (cmd)** | `start http://localhost:8501` |
+| **Mac** | `open http://localhost:8501` |
+| **Linux** | `xdg-open http://localhost:8501` |
+
+Or just type these URLs manually:
+- http://localhost:8501 — Upload an image → see depth + 3D point cloud
+- http://localhost:8000/docs — API documentation
+- http://localhost:9090 — Prometheus metrics
+- http://localhost:3000 — Grafana dashboard (admin / machle2025)
+
+**Step 3 — Check all services are running:**
+```bash
 docker compose ps
-start http://localhost:8501
-start http://localhost:8000/docs
-start http://localhost:9090
-start http://localhost:3000
+```
+
+**Step 4 — Stop everything:**
+```bash
+docker compose down
 ```
 
 ---
