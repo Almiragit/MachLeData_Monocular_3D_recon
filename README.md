@@ -185,9 +185,11 @@ Requirements:
 |---|---|---|
 | `lint` | push to main/dev | Flake8 + YAML config validation |
 | `test` | push to main/dev | 17 pytest tests: unit + smoke/integration (API + retrain trigger) |
-| `dvc-check` | push to main (or manual) | `dvc dag` + pipeline syntax check |
-| `docker-build` | push to main | Build + push Docker image to Docker Hub |
+| `dvc-check` | push to main (or manual trigger) | `dvc dag` + pipeline syntax check |
+| `docker-e2e-smoke` | push to main/dev | Full Docker Compose stack: build, health check, `/predict` + `/metrics` smoke test |
+| `docker-build` | push to main/dev | Verify Dockerfile compiles (no push — no DockerHub secrets needed) |
 
+> **Note:** No DockerHub account or GitHub Secrets required. All CI jobs verify code quality, tests, and Docker stack — the production image is built locally with `docker compose up --build`.
 ---
 
 ## Demo Runbook (Presentation-Ready)
