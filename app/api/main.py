@@ -77,9 +77,7 @@ def _load_model():
 
 def _load_baseline():
     """Load drift baseline from artifacts/logs/baseline.json (created by compute_baseline.py)."""
-    baseline_path = os.path.join(
-        os.path.dirname(cfg["artifacts"]["logs"]), "baseline.json"
-    )
+    baseline_path = os.path.join(cfg["artifacts"]["logs"], "baseline.json")
     if not os.path.exists(baseline_path):
         print(f"[API] WARNING: No baseline found at {baseline_path}")
         print("[API] Drift detection will be inactive until baseline is computed.")
