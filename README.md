@@ -123,10 +123,14 @@ start http://localhost:3000
 | **Streamlit** | http://localhost:8501 | Upload UI + Depth map + Interactive 3D Point Cloud (Plotly) |
 | **Prometheus** | http://localhost:9090 | Metrics scraping (8 drift gauges) |
 | **Grafana** | http://localhost:3000 | Drift dashboard (admin / machle2025) |
+| **Retrain Trigger** | (background) | Checks drift every 5 min; auto-triggers `dvc repro` when alert fires |
 
 ```bash
-# Start all services
+# Start all services (retrain-trigger runs automatically in background)
 docker compose up -d --build
+
+# Check that all services are running
+docker compose ps
 
 # Or run individually (development)
 uvicorn app.api.main:app --reload --port 8000

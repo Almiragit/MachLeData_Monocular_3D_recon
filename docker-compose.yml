@@ -83,6 +83,30 @@ services:
       - mlops-net
     restart: unless-stopped
 
+  # ── Retrain Trigger — automatic drift check every 5 minutes ──────────────
+  retrain-trigger:
+    image: python:3.11-slim
+    container_name: machle-retrain-trigger
+    working_dir: /app
+    command: >
+      bash -c "
+        pip install prometheus-client requests pyyaml -q &&
+        python src/training/retrain_trigger.py --interval 300
+      "
+    volumes:
+      - ./src:/app/src
+      - ./dvc.yaml:/app/dvc.yaml
+      - ./configs:/app/configs:ro
+      - ./artifacts:/app/artifacts
+    environment:
+      - PROMETHEUS_URL=http://prometheus:9090
+      - DVC_REPRO_ENABLED=false
+    depends_on:
+      - prometheus
+    networks:
+      - mlops-net
+    restart: unless-stopped
+
   # ── Grafana — monitoring dashboard ─────────────────────────────────────────
   grafana:
     image: grafana/grafana:10.4.2
