@@ -20,6 +20,7 @@ Usage:
 """
 
 import argparse
+import os
 import subprocess
 import sys
 import time
@@ -29,9 +30,10 @@ import requests
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-# ─── Config ───────────────────────────────────────────────────────────────────
-PROMETHEUS_URL = "http://localhost:9090"
-CHECK_INTERVAL_S = 300           # check every 5 minutes
+# ─── Config (env vars override defaults) ──────────────────────────────────────
+PROMETHEUS_URL = os.getenv("PROMETHEUS_URL", "http://localhost:9090")
+CHECK_INTERVAL_S = int(os.getenv("CHECK_INTERVAL_S", "300"))
+DVC_REPRO_ENABLED = os.getenv("DVC_REPRO_ENABLED", "true").lower() in ("1", "true", "yes")
 DRIFT_ALERT_METRIC = "drift_alert_triggered"
 CONSECUTIVE_ALERTS_NEEDED = 3   # require 3 consecutive alerts before retraining
 
@@ -131,8 +133,12 @@ def run(once: bool = False, dry_run: bool = False, force_alert: bool = False) ->
             if consecutive_alerts >= CONSECUTIVE_ALERTS_NEEDED:
                 print(
                     "[RetainTrigger] Sustained drift confirmed -> triggering pipeline")
-                if dry_run:
-                    print("[RetainTrigger] [DRY-RUN] Retraining would be triggered now")
+                if dry_run or not DVC_REPRO_ENABLED:
+                    if not DVC_REPRO_ENABLED:
+                        print("[RetainTrigger] [DVC_REPRO_DISABLED] Would trigger retraining "
+                              "(set DVC_REPRO_ENABLED=true to activate)")
+                    else:
+                        print("[RetainTrigger] [DRY-RUN] Retraining would be triggered now")
                     success = True
                 else:
                     success = trigger_retraining()
