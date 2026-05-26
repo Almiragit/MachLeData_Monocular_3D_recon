@@ -1,5 +1,3 @@
-version: "3.9"
-
 networks:
   mlops-net:
     driver: bridge
@@ -46,12 +44,6 @@ services:
       context: .
       dockerfile: app/frontend/Dockerfile
     container_name: machle-frontend
-    working_dir: /app
-    command: >
-      streamlit run app/frontend/app.py
-        --server.port 8501
-        --server.address 0.0.0.0
-        --server.headless true
     ports:
       - "8501:8501"
     volumes:
@@ -88,9 +80,6 @@ services:
       context: .
       dockerfile: src/training/Dockerfile.retrain-trigger
     container_name: machle-retrain-trigger
-    working_dir: /app
-    command: >
-      python src/training/retrain_trigger.py --interval 300
     volumes:
       - ./src:/app/src
       - ./dvc.yaml:/app/dvc.yaml

@@ -3,7 +3,7 @@ FROM python:3.11-slim
 WORKDIR /app
 
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir streamlit requests pillow numpy plotly
+    pip install --no-cache-dir streamlit==1.35.0 requests pillow numpy plotly
 
 COPY app/ ./app/
 
