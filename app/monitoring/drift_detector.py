@@ -29,14 +29,22 @@ import numpy as np
 from prometheus_client import Gauge
 
 # ─── Prometheus gauges (exposed at /metrics) ──────────────────────────────────
-DRIFT_INPUT_BRIGHTNESS  = Gauge("drift_input_brightness_psi",  "PSI score for image brightness")
-DRIFT_INPUT_BLUR        = Gauge("drift_input_blur_psi",        "PSI score for image blur (Laplacian)")
-DRIFT_INPUT_CONTRAST    = Gauge("drift_input_contrast_psi",    "PSI score for image contrast")
-DRIFT_PRED_DEPTH_MEAN   = Gauge("drift_pred_depth_mean",       "Rolling mean of predicted depth values")
-DRIFT_PRED_DEPTH_STD    = Gauge("drift_pred_depth_std",        "Rolling std of predicted depth values")
-DRIFT_PRED_INVALID_RATIO = Gauge("drift_pred_invalid_ratio",   "Fraction of near-zero depth pixels")
-DRIFT_KS_BRIGHTNESS     = Gauge("drift_ks_brightness_stat",    "KS-test statistic for brightness")
-DRIFT_ALERT_TRIGGERED   = Gauge("drift_alert_triggered",       "1 if any drift alert is active, else 0")
+DRIFT_INPUT_BRIGHTNESS = Gauge(
+    "drift_input_brightness_psi", "PSI score for image brightness")
+DRIFT_INPUT_BLUR = Gauge("drift_input_blur_psi",
+                         "PSI score for image blur (Laplacian)")
+DRIFT_INPUT_CONTRAST = Gauge(
+    "drift_input_contrast_psi", "PSI score for image contrast")
+DRIFT_PRED_DEPTH_MEAN = Gauge(
+    "drift_pred_depth_mean", "Rolling mean of predicted depth values")
+DRIFT_PRED_DEPTH_STD = Gauge("drift_pred_depth_std",
+                             "Rolling std of predicted depth values")
+DRIFT_PRED_INVALID_RATIO = Gauge(
+    "drift_pred_invalid_ratio", "Fraction of near-zero depth pixels")
+DRIFT_KS_BRIGHTNESS = Gauge(
+    "drift_ks_brightness_stat", "KS-test statistic for brightness")
+DRIFT_ALERT_TRIGGERED = Gauge(
+    "drift_alert_triggered", "1 if any drift alert is active, else 0")
 
 
 # ─── Data structures ──────────────────────────────────────────────────────────
@@ -112,15 +120,16 @@ def extract_image_stats(bgr_image: np.ndarray, depth_norm: Optional[np.ndarray] 
     gray = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2GRAY).astype(np.float32)
 
     brightness = float(gray.mean())
-    contrast   = float(gray.std())
-    blur       = float(cv2.Laplacian(gray, cv2.CV_32F).var())
+    contrast = float(gray.std())
+    blur = float(cv2.Laplacian(gray, cv2.CV_32F).var())
 
     depth_mean = depth_std = invalid_ratio = 0.0
     if depth_norm is not None:
         d = depth_norm.astype(np.float32) / 255.0
-        depth_mean    = float(d.mean())
-        depth_std     = float(d.std())
-        invalid_ratio = float((d < 0.02).mean())   # near-zero = unreliable depth
+        depth_mean = float(d.mean())
+        depth_std = float(d.std())
+        # near-zero = unreliable depth
+        invalid_ratio = float((d < 0.02).mean())
 
     return ImageStats(
         brightness=brightness,
@@ -142,7 +151,7 @@ class DriftDetector:
     """
 
     PSI_ALERT_THRESHOLD = 0.25   # significant drift
-    PSI_WARN_THRESHOLD  = 0.10   # moderate drift
+    PSI_WARN_THRESHOLD = 0.10   # moderate drift
 
     def __init__(
         self,
@@ -158,22 +167,23 @@ class DriftDetector:
 
         # Reference baseline (set via set_reference())
         self._ref_brightness: Optional[np.ndarray] = None
-        self._ref_contrast:   Optional[np.ndarray] = None
-        self._ref_blur:       Optional[np.ndarray] = None
+        self._ref_contrast: Optional[np.ndarray] = None
+        self._ref_blur: Optional[np.ndarray] = None
 
         self.latest_report = DriftReport()
 
         # Start background thread
         self._thread = threading.Thread(target=self._monitor_loop, daemon=True)
         self._thread.start()
-        print("[DriftDetector] ✓ Background monitor started")
+        print("[DriftDetector] [OK] Background monitor started")
 
     def set_reference(self, stats_list: list[ImageStats]) -> None:
         """Set baseline from training/val split statistics."""
         self._ref_brightness = np.array([s.brightness for s in stats_list])
-        self._ref_contrast   = np.array([s.contrast   for s in stats_list])
-        self._ref_blur       = np.array([s.blur       for s in stats_list])
-        print(f"[DriftDetector] Reference baseline set from {len(stats_list)} samples")
+        self._ref_contrast = np.array([s.contrast for s in stats_list])
+        self._ref_blur = np.array([s.blur for s in stats_list])
+        print(
+            f"[DriftDetector] Reference baseline set from {len(stats_list)} samples")
 
     def update(self, stats: ImageStats) -> None:
         """Call after each inference — thread-safe."""
@@ -185,24 +195,24 @@ class DriftDetector:
             window = list(self._window)
 
         if len(window) < 10 or self._ref_brightness is None:
-            return DriftReport()   # not enough data yet
+            return DriftReport()  # not enough data yet
 
         prod_brightness = np.array([s.brightness for s in window])
-        prod_contrast   = np.array([s.contrast   for s in window])
-        prod_blur       = np.array([s.blur       for s in window])
+        prod_contrast = np.array([s.contrast for s in window])
+        prod_blur = np.array([s.blur for s in window])
 
         psi_b = compute_psi(self._ref_brightness, prod_brightness)
-        psi_c = compute_psi(self._ref_contrast,   prod_contrast)
-        psi_bl = compute_psi(self._ref_blur,       prod_blur)
-        ks_b  = compute_ks(self._ref_brightness,  prod_brightness)
+        psi_c = compute_psi(self._ref_contrast, prod_contrast)
+        psi_bl = compute_psi(self._ref_blur, prod_blur)
+        ks_b = compute_ks(self._ref_brightness, prod_brightness)
 
-        depth_mean    = float(np.mean([s.depth_mean    for s in window]))
-        depth_std     = float(np.mean([s.depth_std     for s in window]))
+        depth_mean = float(np.mean([s.depth_mean for s in window]))
+        depth_std = float(np.mean([s.depth_std for s in window]))
         invalid_ratio = float(np.mean([s.invalid_ratio for s in window]))
 
         alert = any([
-            psi_b  > self.PSI_ALERT_THRESHOLD,
-            psi_c  > self.PSI_ALERT_THRESHOLD,
+            psi_b > self.PSI_ALERT_THRESHOLD,
+            psi_c > self.PSI_ALERT_THRESHOLD,
             psi_bl > self.PSI_ALERT_THRESHOLD,
             invalid_ratio > 0.30,
         ])
@@ -236,9 +246,10 @@ class DriftDetector:
                 DRIFT_ALERT_TRIGGERED.set(1.0 if report.alert else 0.0)
 
                 if report.alert:
-                    print(f"[DriftDetector] ⚠️  DRIFT ALERT: {report.summary}")
+                    print(f"[DriftDetector] [ALERT] DRIFT ALERT: {report.summary}")
                 else:
-                    print(f"[DriftDetector] ✓ No drift (PSI_brightness={report.psi_brightness:.3f})")
+                    print(
+                        f"[DriftDetector] [OK] No drift (PSI_brightness={report.psi_brightness:.3f})")
 
             except Exception as e:
                 print(f"[DriftDetector] Error in monitor loop: {e}")

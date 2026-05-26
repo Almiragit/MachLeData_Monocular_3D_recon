@@ -1,44 +1,91 @@
 """
 src/models/losses.py
 --------------------
-Custom loss functions for monocular depth estimation.
+Loss functions for depth estimation.
+
+- SILogLoss: Scale-Invariant Logarithmic Loss (standard for monocular depth)
+- BerHuLoss: Reversed Huber Loss (robust to outliers)
 """
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 
 class SILogLoss(nn.Module):
     """
-    Scale-Invariant Logarithmic Loss (Eigen et al., 2014).
-    Standard loss for monocular depth estimation.
+    Scale-Invariant Logarithmic Loss.
+
+    Formula:
+        L = sqrt( mean(d^2) - lambda * (mean(d))^2 )
+    where d = log(pred) - log(target)
+
+    lambda=0.5 is the standard value used in the original paper.
     """
 
-    def __init__(self, lambd: float = 0.5, eps: float = 1e-6):
+    def __init__(self, lambd: float = 0.5):
         super().__init__()
         self.lambd = lambd
-        self.eps = eps
+
+    @staticmethod
+    def _align_shapes(pred: torch.Tensor, target: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        """Align pred/target to the same shape (B,1,H,W) when needed."""
+        if pred.dim() == 3:
+            pred = pred.unsqueeze(1)
+        if target.dim() == 3:
+            target = target.unsqueeze(1)
+        return pred, target
 
     def forward(self, pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-        mask = target > 0
-        d = torch.log(pred[mask] + self.eps) - torch.log(target[mask] + self.eps)
-        return d.pow(2).mean() - self.lambd * d.mean().pow(2)
+        pred, target = self._align_shapes(pred, target)
+        mask = (target > 0).detach()
+        if not mask.any():
+            return torch.tensor(0.0, device=pred.device)
+
+        pred_m = pred[mask]
+        target_m = target[mask]
+
+        eps = 1e-6
+        diff = torch.log(pred_m + eps) - torch.log(target_m + eps)
+        loss = torch.sqrt(
+            torch.mean(diff ** 2) - self.lambd * (torch.mean(diff) ** 2)
+        )
+        return loss
 
 
 class BerHuLoss(nn.Module):
     """
-    Reverse Huber (BerHu) loss — combines L1 for small errors, L2 for large.
+    Reversed Huber (BerHu) Loss.
+
+    Used as an alternative to SILog. Less sensitive to outliers.
+    Threshold c = 0.2 * max(|pred - target|)
     """
 
     def __init__(self, threshold: float = 0.2):
         super().__init__()
         self.threshold = threshold
 
+    @staticmethod
+    def _align_shapes(pred: torch.Tensor, target: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        """Align pred/target to the same shape (B,1,H,W) when needed."""
+        if pred.dim() == 3:
+            pred = pred.unsqueeze(1)
+        if target.dim() == 3:
+            target = target.unsqueeze(1)
+        return pred, target
+
     def forward(self, pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-        mask = target > 0
+        pred, target = self._align_shapes(pred, target)
+        mask = (target > 0).detach()
+        if not mask.any():
+            return torch.tensor(0.0, device=pred.device)
+
         diff = torch.abs(pred[mask] - target[mask])
-        c = self.threshold * diff.max().detach()
-        l1_mask = diff <= c
-        loss = torch.where(l1_mask, diff, (diff ** 2 + c ** 2) / (2 * c + 1e-8))
+        c = self.threshold * torch.max(diff).detach()
+
+        # L1 for |diff| <= c, L2 for |diff| > c
+        loss = torch.where(
+            diff <= c,
+            diff,
+            (diff ** 2 + c ** 2) / (2 * c)
+        )
         return loss.mean()

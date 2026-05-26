@@ -42,17 +42,16 @@ services:
 
   # ── Streamlit — interactive UI ──────────────────────────────────────────────
   frontend:
-    image: python:3.11-slim
+    build:
+      context: .
+      dockerfile: app/frontend/Dockerfile
     container_name: machle-frontend
     working_dir: /app
     command: >
-      bash -c "
-        pip install streamlit requests pillow numpy plotly -q &&
-        streamlit run app/frontend/app.py
-          --server.port 8501
-          --server.address 0.0.0.0
-          --server.headless true
-      "
+      streamlit run app/frontend/app.py
+        --server.port 8501
+        --server.address 0.0.0.0
+        --server.headless true
     ports:
       - "8501:8501"
     volumes:
@@ -79,6 +78,29 @@ services:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"
       - "--web.enable-lifecycle"
+    networks:
+      - mlops-net
+    restart: unless-stopped
+
+  # ── Retrain Trigger — automatic drift check every 5 minutes ──────────────
+  retrain-trigger:
+    build:
+      context: .
+      dockerfile: src/training/Dockerfile.retrain-trigger
+    container_name: machle-retrain-trigger
+    working_dir: /app
+    command: >
+      python src/training/retrain_trigger.py --interval 300
+    volumes:
+      - ./src:/app/src
+      - ./dvc.yaml:/app/dvc.yaml
+      - ./configs:/app/configs:ro
+      - ./artifacts:/app/artifacts
+    environment:
+      - PROMETHEUS_URL=http://prometheus:9090
+      - DVC_REPRO_ENABLED=false
+    depends_on:
+      - prometheus
     networks:
       - mlops-net
     restart: unless-stopped
