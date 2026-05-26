@@ -42,17 +42,16 @@ services:
 
   # ── Streamlit — interactive UI ──────────────────────────────────────────────
   frontend:
-    image: python:3.11-slim
+    build:
+      context: .
+      dockerfile: app/frontend/Dockerfile
     container_name: machle-frontend
     working_dir: /app
     command: >
-      bash -c "
-        pip install streamlit requests pillow numpy plotly -q &&
-        streamlit run app/frontend/app.py
-          --server.port 8501
-          --server.address 0.0.0.0
-          --server.headless true
-      "
+      streamlit run app/frontend/app.py
+        --server.port 8501
+        --server.address 0.0.0.0
+        --server.headless true
     ports:
       - "8501:8501"
     volumes:
@@ -85,14 +84,13 @@ services:
 
   # ── Retrain Trigger — automatic drift check every 5 minutes ──────────────
   retrain-trigger:
-    image: python:3.11-slim
+    build:
+      context: .
+      dockerfile: src/training/Dockerfile.retrain-trigger
     container_name: machle-retrain-trigger
     working_dir: /app
     command: >
-      bash -c "
-        pip install prometheus-client requests pyyaml -q &&
-        python src/training/retrain_trigger.py --interval 300
-      "
+      python src/training/retrain_trigger.py --interval 300
     volumes:
       - ./src:/app/src
       - ./dvc.yaml:/app/dvc.yaml
