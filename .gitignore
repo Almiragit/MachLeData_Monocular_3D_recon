@@ -4,6 +4,8 @@
 
 # Secrets — never commit
 .env
+rootkey.csv
+*.csv
 
 # Python
 __pycache__/

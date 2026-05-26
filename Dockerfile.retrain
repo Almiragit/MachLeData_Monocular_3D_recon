@@ -1,0 +1,14 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install deps at BUILD time
+RUN pip install --no-cache-dir \
+    prometheus-client>=0.19.0 \
+    requests>=2.31.0 \
+    pyyaml>=6.0.1
+
+COPY src/ ./src/
+COPY configs/ ./configs/
+
+CMD ["python", "src/training/retrain_trigger.py", "--interval", "300"]

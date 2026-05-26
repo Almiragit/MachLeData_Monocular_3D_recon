@@ -3,15 +3,12 @@ FROM python:3.11-slim AS builder
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc g++ \
-    libglib2.0-0 libsm6 libxext6 libxrender-dev \
-    libgl1 \
-    && rm -rf /var/lib/apt/lists/*
+# Upgrade pip and install wheel
+RUN pip install --no-cache-dir --upgrade pip wheel
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+# Install dependencies using the separate Docker requirements file
+COPY requirements-docker.txt .
+RUN pip install --no-cache-dir -r requirements-docker.txt
 
 # ─── Runtime Stage ────────────────────────────────────────────────────────────
 FROM python:3.11-slim AS runtime
@@ -21,12 +18,13 @@ LABEL description="FastAPI inference server — Depth-Anything-V2"
 
 WORKDIR /app
 
+# Copy python packages and binaries from the builder stage
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
-# Runtime system libs (OpenCV needs libGL)
+# We use opencv-python-headless, so no heavy GL libs needed, just standard system libs
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libglib2.0-0 libsm6 libxext6 libxrender-dev libgl1 \
+    libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy source — DaV2 checkpoint dir is mounted at runtime via docker-compose volume

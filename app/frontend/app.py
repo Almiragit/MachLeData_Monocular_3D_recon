@@ -217,7 +217,7 @@ if uploaded:
     # Show original immediately
     col_orig, col_depth = st.columns(2)
     with col_orig:
-        st.image(pil_img, use_container_width=True)
+        st.image(pil_img, use_column_width=True)
         st.markdown('<p class="label">📷 Original Image</p>',
                     unsafe_allow_html=True)
 
@@ -238,7 +238,7 @@ if uploaded:
         depth_pil = b64_to_pil(result["depth_colormap_b64"])
 
         with col_depth:
-            placeholder.image(depth_pil, use_container_width=True)
+            placeholder.image(depth_pil, use_column_width=True)
             st.markdown('<p class="label">🌈 Predicted Depth Map (INFERNO)</p>',
                         unsafe_allow_html=True)
 
