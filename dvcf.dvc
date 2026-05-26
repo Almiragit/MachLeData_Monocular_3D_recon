@@ -1,0 +1,6 @@
+outs:
+- md5: 4025a4f3780e226afb7da1b622614ae3.dir
+  size: 45
+  nfiles: 1
+  hash: md5
+  path: dvcf

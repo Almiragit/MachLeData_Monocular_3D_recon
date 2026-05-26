@@ -1,0 +1,449 @@
+<<<<<<< HEAD
+import os
+import sys
+import torch
+import torch.optim as optim
+from torch.utils.data import Dataset, DataLoader
+from torchvision import transforms
+=======
+"""
+src/training/train.py
+--------------------
+Stage 2 – Model Training: Fine-tune DaV2 Hybrid Decoder on NYU Depth V2.
+
+Architecture:
+  - DINOv2 Encoder (frozen) – extracts visual features
+  - DPTHead Decoder (trainable) – predicts depth map
+
+Usage:
+    python src/training/train.py
+    python src/training/train.py --epochs 20 --lr 5e-5
+    python src/training/train.py --debug        # 2 epochs, 50 samples
+"""
+
+import sys
+from pathlib import Path
+
+# Ensure project root is importable when run as script: python src/training/train.py
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+
+from src.utils import get_device, load_configs, set_seed  # noqa: E402
+from src.models.losses import SILogLoss  # noqa: E402
+from src.models.model import build_hybrid_model  # noqa: E402
+import argparse
+import os
+from datetime import datetime
+
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import DataLoader
+from tqdm import tqdm
+>>>>>>> 83dab2a3a58fb0b30202b6ff52cba402c35217c8
+import wandb
+from tqdm import tqdm
+
+<<<<<<< HEAD
+# ==========================================================
+# 1. RESOLVE ABSOLUTE PATHS & NOTEBOOK IMPORTER
+# ==========================================================
+# This script is located in 'src/training'. Go up 2 levels to reach 'MachLeData' root.
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+
+# Inject Depth-Anything-V2 repository path directly into Python's search path
+REPO_PATH = os.path.join(BASE_DIR, 'src', 'models', 'Depth-Anything-V2')
+if REPO_PATH not in sys.path:
+    sys.path.insert(0, REPO_PATH)
+
+# Inject the notebooks directory so Python can locate your .ipynb file
+NOTEBOOKS_DIR = os.path.join(BASE_DIR, "notebooks")
+if NOTEBOOKS_DIR not in sys.path:
+    sys.path.insert(0, NOTEBOOKS_DIR)
+
+try:
+    # Reads directly from your DAV2_Hybrid.ipynb notebook file
+    from ipynb.fs.full.DAV2_Hybrid import load_hybrid_model
+    print("--- Console: Successfully imported Hybrid Model directly from DAV2_Hybrid.ipynb! ---")
+except ImportError as e:
+    print(f"\n[CRITICAL ERROR]: Could not parse notebook features. Error detail: {e}")
+    print("👉 Make sure you ran 'pip install ipynb' in your terminal environment.")
+    print(f"👉 Verify that 'DAV2_Hybrid.ipynb' is inside: {NOTEBOOKS_DIR}\n")
+    sys.exit(1)
+
+# ==========================================================
+# 2. MATCH DATA SET STRUCTURE PATHS (From your VS Code structure)
+# ==========================================================
+TRAIN_DATA_PATH = os.path.join(BASE_DIR, "src", "data", "data", "processed", "train")
+VAL_DATA_PATH = os.path.join(BASE_DIR, "src", "data", "data", "processed", "val")
+
+# ==========================================================
+# 3. CUSTOM NYU DATASET CLASS WITH ON-THE-FLY PREPROCESSING
+# ==========================================================
+class NYUDataset(Dataset):
+    def __init__(self, data_dir):
+        self.data_dir = data_dir
+        if not os.path.exists(data_dir):
+            raise FileNotFoundError(f"Target directory missing: {data_dir}")
+        self.files = [f for f in os.listdir(data_dir) if f.endswith('.pt')]
+        
+        # Preprocessing pipeline required by the DA-V2 ViT Backbone
+        self.transform = transforms.Compose([
+            transforms.Resize((518, 518)),  # Rigid resolution matching ViT-B expectations
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], 
+                                 std=[0.229, 0.224, 0.225])
+        ])
+
+    def __len__(self):
+        return len(self.files)
+
+    def __getitem__(self, idx):
+        path = os.path.join(self.data_dir, self.files[idx])
+        
+        # Safe checkpoint loading for PyTorch 2.6+ environments containing NumPy structures
+        data = torch.load(path, map_location='cpu', weights_only=False)
+        
+        # Images were stored as (H, W, C) from NumPy -> Convert to PyTorch (C, H, W)
+        image = torch.from_numpy(data['image']).permute(2, 0, 1).float() / 255.0
+        image = self.transform(image)
+        
+        # Depths were stored as (H, W) -> Add explicit channel dimension
+        depth = torch.from_numpy(data['depth']).float().unsqueeze(0)
+        
+        # Interpolate the ground truth target to match the 518x518 processing space
+        depth = torch.nn.functional.interpolate(depth.unsqueeze(0), 
+                                                size=(518, 518), 
+                                                mode='nearest').squeeze(0)
+=======
+
+# ─── NYU Dataset (portable, no ipynb dependency) ─────────────────────────────
+class NYUDataset(torch.utils.data.Dataset):
+    """
+    Loads preprocessed NYU Depth V2 data saved as .pt files.
+    Expected structure:
+        data_dir/
+            file_000.pt
+            file_001.pt
+            ...
+    Each .pt file contains:
+        {'image': np.ndarray (H, W, 3), 'depth': np.ndarray (H, W)}
+    """
+
+    def __init__(self, data_dir: str, img_size: int = 518):
+        self.data_dir = data_dir
+        self.img_size = img_size
+        if not os.path.exists(data_dir):
+            raise FileNotFoundError(f"Dataset directory not found: {data_dir}")
+
+        self.files = sorted([
+            f for f in os.listdir(data_dir) if f.endswith('.pt')
+        ])
+        print(f"[NYUDataset] Loaded {len(self.files)} samples from {data_dir}")
+
+    def __len__(self):
+        return len(self.files)
+
+    def __getitem__(self, idx: int):
+        path = os.path.join(self.data_dir, self.files[idx])
+        data = torch.load(path, map_location='cpu', weights_only=False)
+
+        # Image: (H, W, C) → (C, H, W), normalize to [0,1]
+        image = torch.from_numpy(data['image']).permute(
+            2, 0, 1).float() / 255.0
+
+        # Normalize using ImageNet stats (DaV2 requirement)
+        mean = torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1)
+        std = torch.tensor([0.229, 0.224, 0.225]).view(3, 1, 1)
+        image = (image - mean) / std
+
+        # Resize to model input size
+        image = nn.functional.interpolate(
+            image.unsqueeze(0), size=(self.img_size, self.img_size),
+            mode='bilinear', align_corners=False
+        ).squeeze(0)
+
+        # Depth: (H, W) → (1, H, W), resize to match
+        depth = torch.from_numpy(data['depth']).float().unsqueeze(0)
+        depth = nn.functional.interpolate(
+            depth.unsqueeze(0), size=(self.img_size, self.img_size),
+            mode='nearest'
+        ).squeeze(0)
+
+>>>>>>> 83dab2a3a58fb0b30202b6ff52cba402c35217c8
+        return image, depth
+
+# ==========================================================
+# 4. SCALE-INVARIANT LOGARITHMIC LOSS (SILog)
+# ==========================================================
+class SILogLoss(torch.nn.Module):
+    def __init__(self, lambd=0.5):
+        super(SILogLoss, self).__init__()
+        self.lambd = lambd
+
+<<<<<<< HEAD
+    def forward(self, pred, target):
+        valid_mask = (target > 0).detach()
+        # Small epsilon value (1e-6) injected to prevent invalid log(0) occurrences
+        diff = torch.log(pred[valid_mask] + 1e-6) - torch.log(target[valid_mask] + 1e-6)
+        loss = torch.sqrt(torch.mean(diff**2) - self.lambd * (torch.mean(diff)**2))
+        return loss
+
+# ==========================================================
+# 5. MAIN ENGINE LOOP EXECUTOR
+# ==========================================================
+def run_training():
+    # Initialize real-time tracking session on Weights & Biases cloud
+    wandb.init(project="Monocular-3D-Reconstruction", name="hybrid-decoder-v1-run")
+    
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    print(f"--- Console: Training session executing on device target: {device} ---")
+    
+    # Instantiate the custom model architecture constructed in your notebook
+    model = load_hybrid_model(encoder='vitb', device=device)
+    
+    # Create Data Loaders (Keep low batch size for local memory stability)
+    train_dataset = NYUDataset(TRAIN_DATA_PATH)
+    train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True, num_workers=0)
+    
+    # CRITICAL PIPELINE DESIGN: Only optimize parameters bound to the trainable CNN decoder!
+    optimizer = optim.Adam(model.custom_decoder.parameters(), lr=1e-4)
+    criterion = SILogLoss()
+    
+    # Set up checkpoints output directory path string
+    checkpoint_dir = os.path.join(BASE_DIR, "checkpoints")
+    os.makedirs(checkpoint_dir, exist_ok=True)
+=======
+# ─── Training Loop ────────────────────────────────────────────────────────────
+def train_one_epoch(model, loader, optimizer, criterion, device, epoch, epochs):
+    model.train()
+    total_loss = 0
+    pbar = tqdm(loader, desc=f"Epoch {epoch + 1}/{epochs}")
+
+    for images, depths in pbar:
+        images, depths = images.to(device), depths.to(device)
+
+        optimizer.zero_grad()
+        outputs = model(images)
+
+        # Clamp to prevent log(0) in SILogLoss
+        outputs = torch.clamp(outputs, min=0.1, max=10.0)
+
+        loss = criterion(outputs, depths)
+        loss.backward()
+        optimizer.step()
+
+        total_loss += loss.item()
+        wandb.log({"batch_loss": loss.item()})
+        pbar.set_postfix({'loss': f"{loss.item():.4f}"})
+
+    avg_loss = total_loss / len(loader)
+    return avg_loss
+
+
+@torch.no_grad()
+def validate(model, loader, criterion, device):
+    model.eval()
+    total_loss = 0
+    for images, depths in loader:
+        images, depths = images.to(device), depths.to(device)
+        outputs = model(images)
+        outputs = torch.clamp(outputs, min=0.1, max=10.0)
+        loss = criterion(outputs, depths)
+        total_loss += loss.item()
+    return total_loss / len(loader)
+
+
+# ─── Main ─────────────────────────────────────────────────────────────────────
+def parse_args():
+    p = argparse.ArgumentParser(description="Fine-tune DaV2 Hybrid Decoder")
+    p.add_argument("--paths_config", default="configs/paths.yaml")
+    p.add_argument("--train_config", default="configs/train.yaml")
+    p.add_argument("--epochs", type=int, default=None)
+    p.add_argument("--lr", type=float, default=None)
+    p.add_argument("--debug", action="store_true",
+                   help="2 epochs, 50 samples max")
+    return p.parse_args()
+
+
+def main():
+    args = parse_args()
+    cfg = load_configs(args.paths_config, args.train_config)
+
+    if args.epochs:
+        cfg["training"]["epochs"] = args.epochs
+    if args.lr:
+        cfg["training"]["learning_rate"] = args.lr
+
+    set_seed(42)
+    device = get_device()
+
+    # ── W&B run naming/grouping ───────────────────────────────────────────────
+    mode = "debug" if args.debug else "full"
+    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+    encoder = cfg["model"].get("encoder", "enc")
+    run_name = (
+        f"train-{cfg['experiment']['name']}-{encoder}"
+        f"-e{cfg['training']['epochs']}-bs{cfg['training']['batch_size']}"
+        f"-lr{cfg['training']['learning_rate']}-{mode}-{ts}"
+    )
+    run_group = cfg["experiment"]["name"]
+
+    # ── W&B ──────────────────────────────────────────────────────────────────
+    run = wandb.init(
+        entity=cfg["experiment"].get("entity"),
+        project=cfg["experiment"]["project"],
+        job_type="training",
+        group=run_group,
+        name=run_name,
+        tags=cfg["experiment"]["tags"] + ["finetune", "hybrid"],
+        config={
+            "epochs": cfg["training"]["epochs"],
+            "batch_size": cfg["training"]["batch_size"],
+            "learning_rate": cfg["training"]["learning_rate"],
+            "freeze_encoder": cfg["training"].get("freeze_encoder", True),
+            "debug": args.debug,
+        },
+    )
+    print(f"[W&B] Run: {run.url}")
+
+    # ── Data ─────────────────────────────────────────────────────────────────
+    data_root = cfg["data"].get("nyu_processed", "data/nyu/processed")
+    train_dir = os.path.join(data_root, "train")
+    val_dir = os.path.join(data_root, "val")
+
+    train_ds = NYUDataset(train_dir)
+    val_ds = NYUDataset(val_dir)
+
+    if args.debug:
+        import random
+        train_ds.files = random.sample(
+            train_ds.files, min(50, len(train_ds.files)))
+        val_ds.files = val_ds.files[:20]
+        cfg["training"]["epochs"] = 2
+        print(
+            f"[DEBUG] Training on {len(train_ds)} samples, {cfg['training']['epochs']} epochs")
+
+    train_loader = DataLoader(
+        train_ds, batch_size=cfg["training"]["batch_size"],
+        shuffle=True, num_workers=0
+    )
+    val_loader = DataLoader(
+        val_ds, batch_size=cfg["training"]["batch_size"],
+        shuffle=False, num_workers=0
+    )
+
+    # ── Model ─────────────────────────────────────────────────────────────────
+    freeze_encoder = cfg["training"].get("freeze_encoder", True)
+    model = build_hybrid_model(
+        encoder=cfg["model"]["encoder"],
+        checkpoint_dir=cfg["model"]["checkpoint_dir"],
+        device=device,
+        freeze_encoder=freeze_encoder,
+    )
+
+    optimizer = optim.Adam(
+        model.custom_decoder.parameters(),
+        lr=cfg["training"]["learning_rate"]
+    )
+    criterion = SILogLoss()
+
+    # ── Training Loop ──────────────────────────────────────────────────────────
+    epochs = cfg["training"]["epochs"]
+    best_val_loss = float("inf")
+    checkpoint_dir = Path(cfg["artifacts"]["checkpoints"])
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+
+    print(f"\n[INFO] Starting training for {epochs} epochs")
+    print(f"[INFO] Encoder frozen: {freeze_encoder}")
+    print(
+        f"[INFO] Trainable params: {sum(p.numel() for p in model.custom_decoder.parameters()):,}")
+
+    for epoch in range(epochs):
+        train_loss = train_one_epoch(
+            model, train_loader, optimizer, criterion,
+            device, epoch, epochs
+        )
+        val_loss = validate(model, val_loader, criterion, device)
+
+        print(f"  → Train: {train_loss:.4f} | Val: {val_loss:.4f}")
+        wandb.log({
+            "epoch": epoch,
+            "train_loss": train_loss,
+            "val_loss": val_loss,
+            "learning_rate": optimizer.param_groups[0]["lr"],
+        })
+
+        # Save best model
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            best_path = checkpoint_dir / "best_model.pth"
+            torch.save({
+                "epoch": epoch,
+                "model_state": model.state_dict(),
+                "optimizer_state": optimizer.state_dict(),
+                "train_loss": train_loss,
+                "val_loss": val_loss,
+            }, best_path)
+            print(f"  ✓ Best model saved: {best_path}")
+
+        # Save latest checkpoint every epoch
+        latest_path = checkpoint_dir / "latest_model.pth"
+        torch.save({
+            "epoch": epoch,
+            "model_state": model.state_dict(),
+            "optimizer_state": optimizer.state_dict(),
+            "train_loss": train_loss,
+            "val_loss": val_loss,
+        }, latest_path)
+
+    # ── Log model artifact to W&B ──────────────────────────────────────────────
+    artifact = wandb.Artifact(
+        name=f"{cfg['experiment']['name']}-finetuned",
+        type="model",
+        description="Fine-tuned DaV2 Hybrid Decoder on NYU Depth V2",
+        metadata={"best_val_loss": best_val_loss, "epochs": epochs},
+    )
+    artifact.add_file(str(best_path))
+    run.log_artifact(artifact)
+
+    wandb.finish()
+    print(f"\n[DONE] Training complete. Best val loss: {best_val_loss:.4f}")
+>>>>>>> 83dab2a3a58fb0b30202b6ff52cba402c35217c8
+
+    model.train()
+    epochs = 10
+    
+    print(f"--- Console: Kicking off optimization over {epochs} Epochs ---")
+    for epoch in range(epochs):
+        epoch_loss = 0
+        pbar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs}")
+        
+        for batch_idx, (images, depths) in enumerate(pbar):
+            images, depths = images.to(device), depths.to(device)
+            
+            optimizer.zero_grad()
+            output = model(images)
+            
+            # Enforce spatial clamp boundaries to stop logarithmic training divergence
+            output = torch.clamp(output, min=0.1, max=10.0)
+            
+            loss = criterion(output, depths)
+            loss.backward()
+            optimizer.step()
+            
+            epoch_loss += loss.item()
+            
+            # Record individual batch steps inside W&B tracking charts
+            wandb.log({"batch_loss": loss.item()})
+            pbar.set_postfix({'loss': f"{loss.item():.4f}"})
+            
+        avg_epoch_loss = epoch_loss / len(train_loader)
+        print(f"--- Epoch {epoch+1} Completed successfully | Average SILog Loss: {avg_epoch_loss:.4f} ---")
+        wandb.log({"epoch_loss": avg_epoch_loss})
+        
+        # Save historical model checkpoints state weights locally
+        checkpoint_path = os.path.join(checkpoint_dir, "latest_hybrid_model.pth")
+        torch.save(model.state_dict(), checkpoint_path)
+        print(f"Checkpoint state successfully dumped locally to: {checkpoint_path}")
+
+if __name__ == "__main__":
+    run_training()

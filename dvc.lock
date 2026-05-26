@@ -1,0 +1,91 @@
+schema: '2.0'
+stages:
+  download:
+    cmd: python src/data/download.py --bucket s3://machle3d --output data/raw
+    deps:
+    - path: configs/paths.yaml
+      hash: md5
+      md5: 45a8a0de20ef4d28d236c3fba6d7933e
+      size: 862
+    - path: src/data/download.py
+      hash: md5
+      md5: 3aa47899c97a896592f1eb7090170640
+      size: 2690
+    outs:
+    - path: data/raw
+      hash: md5
+      md5: 56c01215362ea379c0c33a3d34adbc16.dir
+      size: 389961431
+      nfiles: 7
+  download_nyu:
+    cmd: python src/data/downloadNYU.py
+    deps:
+    - path: configs/paths.yaml
+      hash: md5
+      md5: 8ec5090227d6f16ba9d5d4ef84173132
+      size: 1038
+    - path: src/data/downloadNYU.py
+      hash: md5
+      md5: 83439e243facfe6a37f8f5d4300e7791
+      size: 878
+    outs:
+    - path: data/nyu/raw/nyu_depth_v2_labeled.mat
+      hash: md5
+      md5: 520609c519fba3ba5ac58c8fefcc3530
+      size: 2972037809
+  prepare_data:
+    cmd: python src/data/prepare_split_data.py
+    deps:
+    - path: configs/paths.yaml
+      hash: md5
+      md5: 8ec5090227d6f16ba9d5d4ef84173132
+      size: 1038
+    - path: data/nyu/raw/nyu_depth_v2_labeled.mat
+      hash: md5
+      md5: 520609c519fba3ba5ac58c8fefcc3530
+      size: 2972037809
+    - path: src/data/prepare_split_data.py
+      hash: md5
+      md5: e98de261655e9c5449156bfe85aa1945
+      size: 1621
+    outs:
+    - path: data/nyu/processed/test
+      hash: md5
+      md5: 734f9f3d6c900168dfb7de0592c07122.dir
+      size: 425239117
+      nfiles: 145
+    - path: data/nyu/processed/train
+      hash: md5
+      md5: ab68803d99b884fa75a6318e4d8f997f.dir
+      size: 3408061531
+      nfiles: 1159
+    - path: data/nyu/processed/val
+      hash: md5
+      md5: ed551f0fd5e79dfc1690a3796eead3ba.dir
+      size: 424428833
+      nfiles: 145
+  compute_baseline:
+    cmd: python src/monitoring/compute_baseline.py
+    deps:
+    - path: configs/paths.yaml
+      hash: md5
+      md5: 8ec5090227d6f16ba9d5d4ef84173132
+      size: 1038
+    - path: data/nyu/processed/val
+      hash: md5
+      md5: ed551f0fd5e79dfc1690a3796eead3ba.dir
+      size: 424428833
+      nfiles: 145
+    - path: src/monitoring/__init__.py
+      hash: md5
+      md5: 96082057be3e3063fa4bbf21721566ba
+      size: 118
+    - path: src/monitoring/compute_baseline.py
+      hash: md5
+      md5: 7ce7cdfda6ea5c9e89c104803714e634
+      size: 6964
+    outs:
+    - path: artifacts/logs/baseline.json
+      hash: md5
+      md5: 3c1a5c582c47455289f98b51cadc5e8d
+      size: 37025

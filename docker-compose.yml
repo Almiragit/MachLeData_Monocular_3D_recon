@@ -1,0 +1,115 @@
+networks:
+  mlops-net:
+    driver: bridge
+
+volumes:
+  grafana-data:
+  prometheus-data:
+
+services:
+
+  # ── FastAPI — DaV2 inference server ────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: machle-api
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount model checkpoints and configs from host (avoids rebuilding image per checkpoint)
+      - ./src/models/Depth-Anything-V2:/app/src/models/Depth-Anything-V2:ro
+      - ./configs:/app/configs:ro
+      - ./artifacts:/app/artifacts
+    environment:
+      - DAV2_INPUT_SIZE=518
+      - WANDB_API_KEY=${WANDB_API_KEY:-}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-eu-central-1}
+    networks:
+      - mlops-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 15s
+      retries: 3
+      start_period: 30s
+
+  # ── Streamlit — interactive UI ──────────────────────────────────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: app/frontend/Dockerfile
+    container_name: machle-frontend
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./app:/app/app
+    environment:
+      - API_URL=http://api:8000
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - mlops-net
+    restart: unless-stopped
+
+  # ── Prometheus — metrics collection ────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: machle-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./app/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"
+    networks:
+      - mlops-net
+    restart: unless-stopped
+
+  # ── Retrain Trigger — automatic drift check every 5 minutes ──────────────
+  retrain-trigger:
+    build:
+      context: .
+      dockerfile: src/training/Dockerfile.retrain-trigger
+    container_name: machle-retrain-trigger
+    volumes:
+      - ./src:/app/src
+      - ./dvc.yaml:/app/dvc.yaml
+      - ./configs:/app/configs:ro
+      - ./artifacts:/app/artifacts
+    environment:
+      - PROMETHEUS_URL=http://prometheus:9090
+      - DVC_REPRO_ENABLED=false
+    depends_on:
+      - prometheus
+    networks:
+      - mlops-net
+    restart: unless-stopped
+
+  # ── Grafana — monitoring dashboard ─────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:10.4.2
+    container_name: machle-grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./app/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=machle2025
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+    depends_on:
+      - prometheus
+    networks:
+      - mlops-net
+    restart: unless-stopped

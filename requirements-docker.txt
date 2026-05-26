@@ -1,0 +1,21 @@
+# ─── API Container Minimal Requirements ──────────────────────────────────────────
+# PyTorch (use index for CPU-only to avoid massive CUDA downloads if on x86, ignored on aarch64)
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch>=2.2.0
+torchvision>=0.17.0
+
+# Core ML/CV
+numpy>=1.26.0
+Pillow>=10.0.0
+opencv-python-headless>=4.9.0
+pyyaml>=6.0.1
+scipy>=1.12.0
+
+# Serving — FastAPI
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
+python-multipart>=0.0.9
+
+# Monitoring
+prometheus-fastapi-instrumentator>=6.1.0
+prometheus-client>=0.19.0

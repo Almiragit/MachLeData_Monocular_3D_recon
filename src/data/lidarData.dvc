@@ -1,0 +1,6 @@
+outs:
+- md5: 0c93ddb6c25fe7968756a9af77b655b8.dir
+  size: 19914776
+  nfiles: 101
+  hash: md5
+  path: lidarData

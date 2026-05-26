@@ -1,20 +1,70 @@
-# Ignore data folder (will be tracked by DVC instead)
-data/
-!data/sample/
+# DVC test files
+/dvcTest.txt
+/dvcf
 
-# Python environment and cache
+# Secrets — never commit
+.env
+rootkey.csv
+*.csv
+
+# Python
 __pycache__/
 *.py[cod]
+*.pyo
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
 .venv/
-env/
 venv/
-.env
+env/
+machle/
 
-# IDE settings
-.vscode/
-.DS_Store
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+.pytest_cache/
 
-# Training artifacts
+# Data (tracked by DVC instead)
+data/raw/
+data/processed/
+data/
+
+# Model outputs (large files)
+outputs/
 artifacts/checkpoints/
-artifacts/outputs/
-*.log
+artifacts/logs/
+artifacts/plots/
+
+# DaV2 checkpoints (large — download separately)
+src/models/Depth-Anything-V2/checkpoints/*.pth
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+
+# Local experiment artifacts
+wandb/
+
+# Temp/accidental local files
+-r
+
+# Large point cloud files
+*.ply
+outputs/
+# extra files not importaint
+notebooks/extra/
+notebooks/wandb/
+src/registry/wandb/
+src/data/request_data
+src/training/wandb/
+# Added by DVC automatically:
+/checkpoints

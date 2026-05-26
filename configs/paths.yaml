@@ -1,11 +1,35 @@
 # configs/paths.yaml
+# ------------------
+# All filesystem paths used across the pipeline.
+
 data:
-  raw: "data/raw"              # Place the downloaded Dataset here.
-  processed: "data/processed"  # Save splited sets (train/val/test)
-  
+  raw: "data/raw"              # Raw images pulled from AWS S3
+  processed: "data/processed"  # Resized / preprocessed images (original)
+  nyu_raw: "data/nyu/raw"      # NYU Depth V2 .mat files
+  nyu_processed: "data/nyu/processed"  # NYU .pt files (train/val/test)
+
 splits:
-  json_path: "splits/split_seed42.json" # Path to the partition file
+  json_path: "splits/split_seed42.json"
+
+aws:
+  s3_bucket: "s3://your-bucket-name/dataset/"
+  profile: "default"
+
+nyu:
+  download_url: "https://datasets.lids.mit.edu/fastdepth/data/nyudepthv2/nyu_depth_v2_labeled.mat"
+  mat_path: "data/nyu/raw/nyu_depth_v2_labeled.mat"
+
+model:
+  dav2_repo: "src/models/Depth-Anything-V2"
+  checkpoint_dir: "src/models/Depth-Anything-V2/checkpoints"
+  encoder: "vitb"              # vits | vitb | vitl
+  input_size: 518
+
+training:
+  checkpoint_dir: "artifacts/checkpoints"
 
 artifacts:
   checkpoints: "artifacts/checkpoints"
-  logs: "logs/"
+  logs: "artifacts/logs"
+  plots: "artifacts/plots"
+  outputs: "outputs"

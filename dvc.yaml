@@ -1,0 +1,101 @@
+# DVC Pipeline — Monocular 3D Reconstruction (Depth-Anything-V2 Hybrid)
+# Dataset: NYU Depth V2 (public, with ground truth)
+#
+# Run full pipeline:   dvc repro
+# Run one stage:       dvc repro <stage>
+# Show DAG:            dvc dag
+
+stages:
+
+  # ── 1. Download NYU Depth V2 dataset ─────────────────────────────────────────
+  download_nyu:
+    cmd: python src/data/downloadNYU.py
+    desc: "Download NYU Depth V2 .mat file"
+    deps:
+      - src/data/downloadNYU.py
+      - configs/paths.yaml
+    outs:
+      - data/nyu/raw/nyu_depth_v2_labeled.mat:
+          cache: true
+
+  # ── 2. Prepare data: .mat → .pt files, train/val/test split ──────────────────
+  prepare_data:
+    cmd: python src/data/prepare_split_data.py
+    desc: "Convert NYU .mat to .pt files and split into train/val/test"
+    deps:
+      - src/data/prepare_split_data.py
+      - configs/paths.yaml
+      - data/nyu/raw/nyu_depth_v2_labeled.mat
+    outs:
+      - data/nyu/processed/train:
+          cache: true
+      - data/nyu/processed/val:
+          cache: true
+      - data/nyu/processed/test:
+          cache: true
+
+  # ── 3. Fine-tune DaV2 Hybrid Decoder on NYU train split ─────────────────────
+  train:
+    cmd: python src/training/train.py
+    desc: "Fine-tune DPTHead decoder (frozen DINOv2 encoder) on NYU train split"
+    deps:
+      - src/training/train.py
+      - src/models/model.py
+      - src/models/losses.py
+      - src/utils.py
+      - configs/train.yaml
+      - configs/paths.yaml
+      - data/nyu/processed/train
+      - data/nyu/processed/val
+      - src/models/Depth-Anything-V2/checkpoints/depth_anything_v2_vitb.pth
+    outs:
+      - artifacts/checkpoints/best_model.pth:
+          cache: true
+      - artifacts/checkpoints/latest_model.pth:
+          cache: true
+    metrics:
+      - artifacts/logs/train_metrics.csv:
+          cache: false
+
+  # ── 4. Compute drift baseline from validation split ──────────────────────────
+  compute_baseline:
+    cmd: python src/monitoring/compute_baseline.py
+    desc: "Compute drift reference statistics from val split for FastAPI monitoring"
+    deps:
+      - src/monitoring/compute_baseline.py
+      - src/monitoring/__init__.py
+      - configs/paths.yaml
+      - data/nyu/processed/val
+    outs:
+      - artifacts/logs/baseline.json:
+          cache: false
+          persist: true
+
+  # ── 5. Evaluate best model on test split ─────────────────────────────────────
+  evaluate:
+    cmd: python src/training/evaluate.py --split test
+    desc: "Evaluate best checkpoint on NYU test split"
+    deps:
+      - src/training/evaluate.py
+      - src/models/model.py
+      - src/models/losses.py
+      - src/utils.py
+      - configs/train.yaml
+      - configs/paths.yaml
+      - data/nyu/processed/test
+      - artifacts/checkpoints/best_model.pth
+    metrics:
+      - artifacts/logs/eval_metrics.csv:
+          cache: false
+
+  # ── 6. Push best model to W&B Registry ──────────────────────────────────────
+  push_registry:
+    cmd: python src/registry/push_model.py
+    desc: "Push best checkpoint to W&B Model Registry"
+    deps:
+      - src/registry/push_model.py
+      - configs/train.yaml
+      - artifacts/checkpoints/best_model.pth
+    metrics:
+      - artifacts/logs/registry_push.log:
+          cache: false
