@@ -218,7 +218,7 @@ Requirements:
 > **Note:** No DockerHub account or GitHub Secrets required. All CI jobs verify code quality, tests, and Docker stack — the production image is built locally with `docker compose up --build`.
 ---
 
-## Demo Runbook (Presentation-Ready)
+## Demo Runbook 
 
 ### 1) Validate code quality quickly
 ```bash
